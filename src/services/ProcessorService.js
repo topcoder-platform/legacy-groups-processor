@@ -53,8 +53,11 @@ async function createGroup (message) {
   // neo4j session
   const session = helper.createDBSession()
 
+  await checkDuplicateGroup(undefined, message.payload.name, connection)
+
   try {
-    await checkDuplicateGroup(undefined, message.payload.name, connection)
+    // begin transaction
+    await connection.beginTransactionAsync()
 
     const generateId = await connection.queryAsync('select first 1 sequence_group_seq.nextval from country')
     const id = generateId[0].nextval
@@ -82,6 +85,12 @@ async function createGroup (message) {
     // update group data in neo4j
     await session.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`,
       { id: message.payload.id, oldId: id })
+
+    // commit the transaction after successfully update group data in neo4j and informix
+    await connection.commitTransactionAsync()
+  } catch (e) {
+    await connection.rollbackTransactionAsync()
+    throw e
   } finally {
     session.close()
     await connection.closeAsync()
@@ -114,9 +123,7 @@ async function updateGroup (message) {
   const connection = await helper.getInformixConnection()
   try {
     await checkGroupExist(message.payload.oldId, connection)
-    if (message.payload.name) {
-      await checkDuplicateGroup(message.payload.oldId, message.payload.name, connection)
-    }
+    await checkDuplicateGroup(message.payload.oldId, message.payload.name, connection)
 
     // prepare the statement for updating the group data to common_oltp.group table
     const rawPayload = {
@@ -130,12 +137,11 @@ async function updateGroup (message) {
 
     const normalizedPayload = _.omitBy(rawPayload, _.isUndefined)
     const keys = Object.keys(normalizedPayload)
+    const fieldsStatement = keys.map(key => `${key} = ?`).join(', ')
 
-    const updateStatements = keys.map(key => normalizedPayload[key] === null
-      ? `${key} = null` : `${key} = '${normalizedPayload[key]}'`).join(', ')
-    const updateGroupQuery = `update group set ${updateStatements}, modifiedAt = current where id = ${message.payload.oldId}`
+    const updateGroupStmt = await prepare(connection, `update group set modifiedAt = current, ${fieldsStatement} where id = ${message.payload.oldId}`)
 
-    await connection.queryAsync(updateGroupQuery)
+    await updateGroupStmt.executeAsync(Object.values(normalizedPayload))
   } finally {
     await connection.closeAsync()
   }
@@ -148,7 +154,7 @@ updateGroup.schema = {
     timestamp: joi.date().required(),
     'mime-type': joi.string().required(),
     payload: joi.object().keys({
-      oldId: joi.number().required(),
+      oldId: joi.number().integer().required(),
       name: joi.string().min(2).max(50).required(),
       description: joi.string().max(500),
       domain: joi.string().max(100),
@@ -181,7 +187,7 @@ deleteGroup.schema = {
     timestamp: joi.date().required(),
     'mime-type': joi.string().required(),
     payload: joi.object().keys({
-      oldId: joi.number().required()
+      oldId: joi.number().integer().required()
     }).required()
   }).required()
 }

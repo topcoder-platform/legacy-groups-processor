@@ -4,21 +4,26 @@
   "description": "Topcoder - Legacy Groups Processor",
   "main": "src/app.js",
   "scripts": {
-    "start:docker": "npm --unsafe-perm install && node src/app.js",
-    "start": "node src/app.js",
+    "start": "npm install && node src/app.js",
     "lint": "standard",
-    "lint:fix": "standard --fix"
+    "lint:fix": "standard --fix",
+    "test": "nyc --reporter=html --reporter=text mocha test/unit/test.js --timeout 20000 --exit",
+    "e2e": "nyc --reporter=html --reporter=text mocha test/e2e/test.js --timeout 20000 --exit"
   },
   "author": "TCSCODER",
   "license": "none",
   "devDependencies": {
+    "should": "^13.2.3",
+    "mocha": "^5.2.0",
+    "nyc": "^13.3.0",
+    "superagent": "^4.1.0",
     "standard": "^11.0.1"
   },
   "dependencies": {
     "bluebird": "^3.5.3",
     "config": "^1.31.0",
     "get-parameter-names": "^0.3.0",
-    "ifxnjs": "^8.0.1",
+    "ifxnjs": "^10.0.3",
     "joi": "^14.3.0",
     "lodash": "^4.17.11",
     "no-kafka": "^3.4.3",
@@ -26,5 +31,20 @@
     "neo4j-driver": "^1.7.2",
     "topcoder-healthcheck-dropin": "^1.0.2",
     "winston": "^3.2.1"
+  },
+  "engines": {
+    "node": "10.x"
+  },
+  "standard": {
+    "env": [
+      "mocha"
+    ]
+  },
+  "nyc": {
+    "exclude": [
+      "test/common/*.js",
+      "test/unit/test.js",
+      "test/e2e/test.js"
+    ]
   }
 }

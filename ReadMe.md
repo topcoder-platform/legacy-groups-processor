@@ -2,7 +2,7 @@
 
 ## Dependencies
 
-- nodejs https://nodejs.org/en/ (v8+)
+- nodejs https://nodejs.org/en/ (v10+)
 - Kafka
 - Informix
 - Neo4j https://neo4j.com/download/
@@ -33,6 +33,8 @@ generally, we only need to update INFORMIX_HOST, KAFKA_URL and GRAPH_DB_URI via 
 
 There is a `/health` endpoint that checks for the health of the app. This sets up an expressjs server and listens on the environment variable `PORT`. It's not part of the configuration file and needs to be passed as an environment variable
 
+Configuration for the tests is at `config/test.js`, only add such new configurations different from `config/default.js`
+- WAIT_TIME: wait time used in test, default is 1000 or one second
 
 ## Local Kafka setup
 
@@ -63,7 +65,6 @@ There is a `/health` endpoint that checks for the health of the app. This sets u
 - optionally, use another terminal, go to same directory, start a consumer to view the messages:
   `bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic groups.notification.create --from-beginning`
 - writing/reading messages to/from other topics are similar
-
 
 ## Topcoder Informix Database Setup
 We will use Topcoder Informix database setup on Docker.
@@ -123,6 +124,16 @@ docker-compose up
 ```
 
 5. When you are running the application for the first time, It will take some time initially to download the image and install the dependencies
+
+## Running unit tests and e2e tests
+You need to run `docker-compose build` if modify source files.
+Make sure run `docker-compose up` in `docker` folder once to make sure application will install dependencies and run successfully with Kafka, Neo4j and Informix.
+
+To run unit tests
+Modify `docker/docker-compose.yml` with `command: run test`(uncomment it) and run `docker-compose up` in `docker` folder
+
+To run e2e tests
+Modify `docker/docker-compose.yml` with `command: run e2e`(uncomment it) and run `docker-compose up` in `docker` folder
 
 ## Verification
 Refer `Verification.md`

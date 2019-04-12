@@ -8,6 +8,10 @@ services:
     env_file:
       - api.env
     volumes:
-      - "../:/app"
+      # - "../:/app"
+      - "../.nyc_output:/app/.nyc_output"
+      - "../coverage:/app/coverage"
     network_mode: "host"
-    command: run start:docker
+    command: run start
+    # command: run test
+    # command: run e2e

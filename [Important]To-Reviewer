@@ -1,3 +1,0 @@
-In Dockerfile, I use a mirror for apt-get otherwise you will get error
-'Failed to fetch http://deb.debian.org/debian/dists/jessie-updates/main/binary-amd64/Packages'
-It seems we can't access http://deb.debian.org/debian/dists/jessie-updates/main/binary-amd64
