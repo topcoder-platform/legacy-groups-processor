@@ -68,7 +68,7 @@ const dataHandler = (messageSet, topic, partition) => Promise.each(messageSet, a
 })
 
 // check if there is kafka connection alive
-function check () {
+const check = () => {
   if (!consumer.client.initialBrokers && !consumer.client.initialBrokers.length) {
     return false
   }
@@ -96,3 +96,7 @@ consumer
     logger.info('Kick Start.......')
   })
   .catch((err) => logger.error(err))
+
+if (process.env.NODE_ENV === 'test') {
+  module.exports = consumer
+}
