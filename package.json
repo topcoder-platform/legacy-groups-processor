@@ -4,7 +4,7 @@
   "description": "Topcoder - Legacy Groups Processor",
   "main": "src/app.js",
   "scripts": {
-    "start": "npm install && node src/app.js",
+    "start": "node src/app.js",
     "lint": "standard",
     "lint:fix": "standard --fix",
     "test": "nyc --reporter=html --reporter=text mocha test/unit/test.js --timeout 20000 --exit",
@@ -26,8 +26,8 @@
     "ifxnjs": "^10.0.3",
     "joi": "^14.3.0",
     "lodash": "^4.17.11",
+    "mysql": "^2.17.1",
     "no-kafka": "^3.4.3",
-    "q": "^1.5.1",
     "neo4j-driver": "^1.7.2",
     "topcoder-healthcheck-dropin": "^1.0.2",
     "winston": "^3.2.1"

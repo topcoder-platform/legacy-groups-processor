@@ -2,10 +2,10 @@
  * Processor Service
  */
 
-const _ = require('lodash')
-const joi = require('joi')
-const logger = require('../common/logger')
-const helper = require('../common/helper')
+const _ = require('lodash');
+const joi = require('joi');
+const logger = require('../common/logger');
+const helper = require('../common/helper');
 
 /**
  * Prepare Informix statement
@@ -13,9 +13,9 @@ const helper = require('../common/helper')
  * @param {String} sql the sql
  * @return {Object} Informix statement
  */
-async function prepare (connection, sql) {
-  const stmt = await connection.prepareAsync(sql)
-  return Promise.promisifyAll(stmt)
+async function prepare(connection, sql) {
+  const stmt = await connection.prepareAsync(sql);
+  return Promise.promisifyAll(stmt);
 }
 
 /**
@@ -24,22 +24,19 @@ async function prepare (connection, sql) {
  * @param {String} name the group name
  * @param {Object} connection the Informix connection
  */
-async function checkDuplicateGroup (id, name, connection) {
-  const result = await connection.queryAsync(`select * from group where name = '${name}'${id ? ` and id <> ${id}` : ''}`)
-  if (result.length > 0) {
-    throw new Error(`The group name ${name} is already used`)
-  }
-}
+async function checkGroupExist(name) {
+  const mySqlPool = helper.getAuroraConnection();
 
-/**
- * Check group exist
- * @param {Number} id the group id
- * @param {Object} connection the Informix connection
- */
-async function checkGroupExist (id, connection) {
-  const result = await connection.queryAsync(`select * from group where id = ${id}`)
-  if (result.length === 0) {
-    throw new Error(`The group with id: ${id} doesn't exist`)
+  try {
+    mySqlPool.query(`SELECT * FROM Authorization.group WHERE name = "${name}"`, function(error, results) {
+      if (error) throw error;
+      if (results.length > 0) {
+        throw new Error(`The group name ${name} is already used`);
+      }
+    });
+  } catch (error) {
+    logger.error(error);
+    throw error;
   }
 }
 
@@ -47,155 +44,285 @@ async function checkGroupExist (id, connection) {
  * Process create group message
  * @param {Object} message the kafka message
  */
-async function createGroup (message) {
-  // informix database connection
-  const connection = await helper.getInformixConnection()
-  // neo4j session
-  const session = helper.createDBSession()
+async function createGroup(message) {
+  //get informix db connection
+  const informixSession = helper.getInformixConnection();
 
-  await checkDuplicateGroup(undefined, message.payload.name, connection)
+  //get neo4j db connection
+  const neoSession = helper.getNeoSession();
 
   try {
-    // begin transaction
-    await connection.beginTransactionAsync()
+    // Check if group with same name exist or not
+    await checkGroupExist(message.payload.name);
 
-    const generateId = await connection.queryAsync('select first 1 sequence_group_seq.nextval from country')
-    const id = generateId[0].nextval
-
-    // prepare the statement for inserting the group data to common_oltp.group table
     const rawPayload = {
-      id,
       name: _.get(message, 'payload.name'),
       description: _.get(message, 'payload.description'),
-      domain: _.get(message, 'payload.domain'),
-      private_group: _.get(message, 'payload.privateGroup') ? 't' : 'f',
-      self_register: _.get(message, 'payload.selfRegister') ? 't' : 'f',
+      private_group: _.get(message, 'payload.privateGroup') ? 'true' : 'false',
+      self_register: _.get(message, 'payload.selfRegister') ? 'true' : 'false',
       createdBy: _.get(message, 'payload.createdBy')
-    }
+    };
 
-    const normalizedPayload = _.omitBy(rawPayload, _.isUndefined)
-    const keys = Object.keys(normalizedPayload)
-    const fields = ['createdAt'].concat(keys)
-    const values = ['current'].concat(_.fill(Array(keys.length), '?'))
+    let groupLegacyId = '';
 
-    const createGroupStmt = await prepare(connection, `insert into group (${fields.join(', ')}) values (${values.join(', ')})`)
+    // Insert data back to `Aurora DB`
+    const mySqlSession = helper.getAuroraConnection();
+    mySqlSession.query(
+      `INSERT INTO Authorization.group(name, description, private_group, self_register, createdBy, createdAt, modifiedBy, modifiedAt) VALUES ("${
+        rawPayload.name
+      }", "${rawPayload.description}", ${rawPayload.private_group}, ${rawPayload.self_register}, "${
+        rawPayload.createdBy
+      }", current_timestamp, "${rawPayload.createdBy}", current_timestamp)`,
+      function(error, results) {
+        if (error) throw error;
+        groupLegacyId = results.insertId;
+        logger.debug(`Group has been created with id = ${groupLegacyId}`);
+      }
+    );
 
-    await createGroupStmt.executeAsync(Object.values(normalizedPayload))
+    // Update `legacyGroupId` back to Neo4J
+    await neoSession.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
+      id: message.payload.id,
+      oldId: groupLegacyId
+    });
 
-    // update group data in neo4j
-    await session.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`,
-      { id: message.payload.id, oldId: id })
+    // Create a record in `securitygroups` table of Infromix DB
+    await informixSession.beginTransactionAsync();
 
-    // commit the transaction after successfully update group data in neo4j and informix
-    await connection.commitTransactionAsync()
-  } catch (e) {
-    await connection.rollbackTransactionAsync()
-    throw e
+    const params = {
+      group_id: groupLegacyId,
+      description: rawPayload.name,
+      created_user_id: rawPayload.createdBy,
+      challenge_group_ind: 1
+    };
+    const normalizedPayload = _.omitBy(params, _.isUndefined);
+    const fields = Object.keys(normalizedPayload);
+    const values = _.fill(Array(fields.length), '?');
+
+    const createGroupStmt = await prepare(
+      informixSession,
+      `insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`
+    );
+
+    await createGroupStmt.executeAsync(Object.values(normalizedPayload));
+    await informixSession.commitTransactionAsync();
+  } catch (error) {
+    logger.error(error);
+    await informixSession.rollbackTransactionAsync();
   } finally {
-    session.close()
-    await connection.closeAsync()
+    neoSession.close();
+    await informixSession.closeAsync();
   }
 }
 
 createGroup.schema = {
-  message: joi.object().keys({
-    topic: joi.string().required(),
-    originator: joi.string().required(),
-    timestamp: joi.date().required(),
-    'mime-type': joi.string().required(),
-    payload: joi.object().keys({
-      id: joi.string().uuid().required(),
-      name: joi.string().min(2).max(50).required(),
-      description: joi.string().max(500),
-      domain: joi.string().max(100),
-      privateGroup: joi.boolean().required(),
-      selfRegister: joi.boolean().required(),
-      createdBy: joi.string()
-    }).required()
-  }).required()
-}
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          id: joi
+            .string()
+            .uuid()
+            .required(),
+          name: joi
+            .string()
+            .min(2)
+            .max(50)
+            .required(),
+          description: joi.string().max(500),
+          domain: joi.string().max(100),
+          privateGroup: joi.boolean().required(),
+          selfRegister: joi.boolean().required(),
+          createdBy: joi.string()
+        })
+        .required()
+    })
+    .required()
+};
 
 /**
  * Process update group message
  * @param {Object} message the kafka message
  */
-async function updateGroup (message) {
-  const connection = await helper.getInformixConnection()
-  try {
-    await checkGroupExist(message.payload.oldId, connection)
-    await checkDuplicateGroup(message.payload.oldId, message.payload.name, connection)
+async function updateGroup(message) {
+  //get informix db connection
+  const informixSession = helper.getInformixConnection();
 
-    // prepare the statement for updating the group data to common_oltp.group table
+  try {
+    // Check if group with same name exist or not
+    await checkGroupExist(message.payload.name);
+
+    // prepare the statement for updating the group data
     const rawPayload = {
       name: _.get(message, 'payload.name'),
-      description: _.get(message, 'payload.description', null),
-      domain: _.get(message, 'payload.domain', null),
-      private_group: _.get(message, 'payload.privateGroup') ? 't' : 'f',
-      self_register: _.get(message, 'payload.selfRegister') ? 't' : 'f',
+      id: _.get(message, 'payload.oldId'),
+      description: _.get(message, 'payload.description'),
+      private_group: _.get(message, 'payload.privateGroup') ? 'true' : 'false',
+      self_register: _.get(message, 'payload.selfRegister') ? 'true' : 'false',
       modifiedBy: _.get(message, 'payload.updatedBy')
-    }
+    };
 
-    const normalizedPayload = _.omitBy(rawPayload, _.isUndefined)
-    const keys = Object.keys(normalizedPayload)
-    const fieldsStatement = keys.map(key => `${key} = ?`).join(', ')
+    // Update data back to `Autorization DB`
+    let mySqlSession = helper.getAuroraConnection();
+    mySqlSession.query(
+      `UPDATE Authorization.group SET name = "${rawPayload.name}", description = "${
+        rawPayload.description
+      }", private_group = ${rawPayload.private_group}, self_register = ${rawPayload.self_register}, modifiedBy = ${
+        rawPayload.modifiedBy
+      }, modifiedAt = current_timestamp WHERE id = ${rawPayload.id}`,
+      function(error) {
+        if (error) throw error;
+        logger.debug(`Group has been updated`);
+      }
+    );
 
-    const updateGroupStmt = await prepare(connection, `update group set modifiedAt = current, ${fieldsStatement} where id = ${message.payload.oldId}`)
+    // Update a record in `securitygroups` table of Infromix DB
+    await informixSession.beginTransactionAsync();
 
-    await updateGroupStmt.executeAsync(Object.values(normalizedPayload))
+    const params = {
+      group_id: rawPayload.id,
+      description: rawPayload.name,
+      created_user_id: rawPayload.createdBy,
+      challenge_group_ind: 1
+    };
+    const normalizedPayload = _.omitBy(params, _.isUndefined);
+    const keys = Object.keys(normalizedPayload);
+    const fields = keys.map(key => `${key} = ?`).join(', ');
+
+    const updateGroupStmt = await prepare(
+      informixSession,
+      `update security_groups set ${fields} where group_id = ${params.group_id}`
+    );
+
+    await updateGroupStmt.executeAsync(Object.values(normalizedPayload));
+    await informixSession.commitTransactionAsync();
+  } catch (error) {
+    logger.error(error);
+    await informixSession.rollbackTransactionAsync();
   } finally {
-    await connection.closeAsync()
+    await informixSession.closeAsync();
   }
 }
 
 updateGroup.schema = {
-  message: joi.object().keys({
-    topic: joi.string().required(),
-    originator: joi.string().required(),
-    timestamp: joi.date().required(),
-    'mime-type': joi.string().required(),
-    payload: joi.object().keys({
-      oldId: joi.number().integer().required(),
-      name: joi.string().min(2).max(50).required(),
-      description: joi.string().max(500),
-      domain: joi.string().max(100),
-      privateGroup: joi.boolean().required(),
-      selfRegister: joi.boolean().required(),
-      updatedBy: joi.string()
-    }).required()
-  }).required()
-}
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          oldId: joi
+            .number()
+            .integer()
+            .required(),
+          name: joi
+            .string()
+            .min(2)
+            .max(50)
+            .required(),
+          description: joi.string().max(500),
+          domain: joi.string().max(100),
+          privateGroup: joi.boolean().required(),
+          selfRegister: joi.boolean().required(),
+          updatedBy: joi.string()
+        })
+        .required()
+    })
+    .required()
+};
 
 /**
  * Process delete group message
  * @param {Object} message the kafka message
  */
-async function deleteGroup (message) {
-  const connection = await helper.getInformixConnection()
+async function deleteGroup(message) {
+  //get informix db connection
+  const informixSession = helper.getInformixConnection();
+
   try {
-    await checkGroupExist(message.payload.oldId, connection)
-    const deleteGroupStmt = await prepare(connection, 'delete from group where id = ?')
-    await deleteGroupStmt.executeAsync([message.payload.oldId])
+    // Check if group with same name exist or not
+    await checkGroupExist(message.payload.name);
+
+    // Delete group from `Autorization DB`
+    let mySqlSession = helper.getAuroraConnection();
+    mySqlSession.query(`DELETE FROM Authorization.group WHERE id = "${message.payload.oldId}"`, function(error) {
+      if (error) throw error;
+    });
+
+    const deleteGroupStmt = await prepare(informixSession, 'delete from security_groups where id = ?');
+    await deleteGroupStmt.executeAsync([message.payload.oldId]);
+    await informixSession.commitTransactionAsync();
+  } catch (error) {
+    logger.error(error);
+    await informixSession.rollbackTransactionAsync();
   } finally {
-    await connection.closeAsync()
+    await informixSession.closeAsync();
   }
 }
 
 deleteGroup.schema = {
-  message: joi.object().keys({
-    topic: joi.string().required(),
-    originator: joi.string().required(),
-    timestamp: joi.date().required(),
-    'mime-type': joi.string().required(),
-    payload: joi.object().keys({
-      oldId: joi.number().integer().required()
-    }).required()
-  }).required()
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          oldId: joi
+            .number()
+            .integer()
+            .required()
+        })
+        .required()
+    })
+    .required()
+};
+
+/**
+ * TODO - Implement this function
+ * Add members to the group
+ * @param {Object} message the kafka message
+ */
+async function addMembersToGroup(message) {
+  //get informix db connection
+  // const informixSession = helper.getInformixConnection();
+  // try {
+  //   // Check if group with same name exist or not
+  //   await checkGroupExist(message.payload.name);
+  //   // Delete group from `Autorization DB`
+  //   let mySqlSession = helper.getAuroraConnection();
+  //   mySqlSession.query(`DELETE FROM Authorization.group WHERE id = "${message.payload.oldId}"`, function(error) {
+  //     if (error) throw error;
+  //   });
+  //   const deleteGroupStmt = await prepare(informixSession, 'delete from security_groups where id = ?');
+  //   await deleteGroupStmt.executeAsync([message.payload.oldId]);
+  //   await informixSession.commitTransactionAsync();
+  // } catch (error) {
+  //   logger.error(error);
+  //   await informixSession.rollbackTransactionAsync();
+  // } finally {
+  //   await informixSession.closeAsync();
+  // }
 }
 
 module.exports = {
   createGroup,
   updateGroup,
-  deleteGroup
-}
+  deleteGroup,
+  addMembersToGroup
+};
 
-logger.buildService(module.exports)
+logger.buildService(module.exports);
