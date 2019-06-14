@@ -101,7 +101,7 @@ async function createGroup(message) {
 
     const createGroupStmt = await prepare(
       informixSession,
-      `insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`
+      `insert into security_groups_test (${fields.join(', ')}) values (${values.join(', ')})`
     );
 
     await createGroupStmt.executeAsync(Object.values(normalizedPayload));
@@ -197,7 +197,7 @@ async function updateGroup(message) {
 
     const updateGroupStmt = await prepare(
       informixSession,
-      `update security_groups set ${fields} where group_id = ${params.group_id}`
+      `update security_groups_test set ${fields} where group_id = ${params.group_id}`
     );
 
     await updateGroupStmt.executeAsync(Object.values(normalizedPayload));
@@ -259,7 +259,7 @@ async function deleteGroup(message) {
       if (error) throw error;
     });
 
-    const deleteGroupStmt = await prepare(informixSession, 'delete from security_groups where id = ?');
+    const deleteGroupStmt = await prepare(informixSession, 'delete from security_groups_test where id = ?');
     await deleteGroupStmt.executeAsync([message.payload.oldId]);
     await informixSession.commitTransactionAsync();
   } catch (error) {
@@ -307,7 +307,7 @@ async function addMembersToGroup(message) {
   //   mySqlSession.query(`DELETE FROM Authorization.group WHERE id = "${message.payload.oldId}"`, function(error) {
   //     if (error) throw error;
   //   });
-  //   const deleteGroupStmt = await prepare(informixSession, 'delete from security_groups where id = ?');
+  //   const deleteGroupStmt = await prepare(informixSession, 'delete from security_groups_test where id = ?');
   //   await deleteGroupStmt.executeAsync([message.payload.oldId]);
   //   await informixSession.commitTransactionAsync();
   // } catch (error) {
