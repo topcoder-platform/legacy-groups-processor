@@ -6,6 +6,7 @@ const _ = require('lodash');
 const joi = require('joi');
 const logger = require('../common/logger');
 const helper = require('../common/helper');
+const mysql = require('mysql');
 
 /**
  * Prepare Informix statement
@@ -29,7 +30,7 @@ async function checkGroupExist(name) {
 
   try {
     logger.debug(`Checking for existence of Group = ${name}`);
-    mySqlPool.query(`SELECT * FROM group WHERE name = "${name}"`, function(error, results) {
+    mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', ['${name}'], function(error, results) {
       if (error) throw error;
       logger.debug(results);
       if (results.length > 0) {
@@ -65,9 +66,12 @@ async function createGroup(message) {
     const rawPayload = {
       name: _.get(message, 'payload.name'),
       description: _.get(message, 'payload.description'),
-      private_group: _.get(message, 'payload.privateGroup') ? 'true' : 'false',
-      self_register: _.get(message, 'payload.selfRegister') ? 'true' : 'false',
-      createdBy: _.get(message, 'payload.createdBy')
+      private_group: _.get(message, 'payload.privateGroup') ? true : false,
+      self_register: _.get(message, 'payload.selfRegister') ? true : false,
+      createdBy: _.get(message, 'payload.createdBy'),
+      modifiedBy: _.get(message, 'payload.createdBy'),
+      createdAt: mysql.raw('CURRENT_TIMESTAMP()'),
+      modifiedAt: mysql.raw('CURRENT_TIMESTAMP()')
     };
     logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
 
@@ -78,19 +82,12 @@ async function createGroup(message) {
 
     logger.debug('Creating group in Authorization DB');
 
-    mySqlSession.query(
-      `INSERT INTO Authorization.group(name, description, private_group, self_register, createdBy, createdAt, modifiedBy, modifiedAt) VALUES ("${
-        rawPayload.name
-      }", "${rawPayload.description}", ${rawPayload.private_group}, ${rawPayload.self_register}, "${
-        rawPayload.createdBy
-      }", current_timestamp, "${rawPayload.createdBy}", current_timestamp)`,
-      function(error, results) {
-        if (error) throw error;
-        logger.debug(`Authorization DB insert result = ${JSON.stringify(results)}`);
-        groupLegacyId = results.insertId;
-        logger.debug(`Group has been created with id = ${groupLegacyId}`);
-      }
-    );
+    mySqlSession.query('INSERT INTO `group` SET ?', rawPayload, function(error, results) {
+      if (error) throw error;
+      logger.debug(`Authorization DB insert result = ${JSON.stringify(results)}`);
+      groupLegacyId = results.insertId;
+      logger.debug(`Group has been created with id = ${groupLegacyId}`);
+    });
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`);
     // Update `legacyGroupId` back to Neo4J
