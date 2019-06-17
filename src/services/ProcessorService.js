@@ -6,7 +6,7 @@ const _ = require('lodash');
 const joi = require('joi');
 const logger = require('../common/logger');
 const helper = require('../common/helper');
-const mysql = require('mysql');
+const moment = require('moment');
 
 /**
  * Prepare Informix statement
@@ -63,15 +63,16 @@ async function createGroup(message) {
     // Check if group with same name exist or not
     await checkGroupExist(message.payload.name);
 
+    const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
     const rawPayload = {
       name: _.get(message, 'payload.name'),
       description: _.get(message, 'payload.description'),
       private_group: _.get(message, 'payload.privateGroup') ? true : false,
       self_register: _.get(message, 'payload.selfRegister') ? true : false,
-      createdBy: _.get(message, 'payload.createdBy'),
-      modifiedBy: _.get(message, 'payload.createdBy'),
-      createdAt: mysql.raw('CURRENT_TIMESTAMP()'),
-      modifiedAt: mysql.raw('CURRENT_TIMESTAMP()')
+      createdBy: Number(_.get(message, 'payload.createdBy')),
+      modifiedBy: Number(_.get(message, 'payload.createdBy')),
+      createdAt: timestamp,
+      modifiedAt: timestamp
     };
     logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
 
