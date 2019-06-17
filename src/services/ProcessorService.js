@@ -28,11 +28,13 @@ async function checkGroupExist(name) {
   const mySqlPool = helper.getAuroraConnection();
 
   try {
+    logger.debug(`Checking for existence of Group = ${name}`);
     mySqlPool.query(`SELECT * FROM Authorization.group WHERE name = "${name}"`, function(error, results) {
       if (error) throw error;
       if (results.length > 0) {
         throw new Error(`The group name ${name} is already used`);
       }
+      logger.debug(`Group not found with name = ${name}`);
     });
   } catch (error) {
     logger.error(error);
@@ -46,10 +48,14 @@ async function checkGroupExist(name) {
  */
 async function createGroup(message) {
   //get informix db connection
+  logger.debug('Getting informix session');
   const informixSession = helper.getInformixConnection();
+  logger.debug('informix session acquired');
 
   //get neo4j db connection
+  logger.debug('Getting neo4j session');
   const neoSession = helper.getNeoSession();
+  logger.debug('neo4j session acquired');
 
   try {
     // Check if group with same name exist or not
@@ -62,11 +68,15 @@ async function createGroup(message) {
       self_register: _.get(message, 'payload.selfRegister') ? 'true' : 'false',
       createdBy: _.get(message, 'payload.createdBy')
     };
+    logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
 
     let groupLegacyId = '';
 
     // Insert data back to `Aurora DB`
     const mySqlSession = helper.getAuroraConnection();
+
+    logger.debug('Creating group in Authorization DB');
+
     mySqlSession.query(
       `INSERT INTO Authorization.group(name, description, private_group, self_register, createdBy, createdAt, modifiedBy, modifiedAt) VALUES ("${
         rawPayload.name
@@ -75,17 +85,20 @@ async function createGroup(message) {
       }", current_timestamp, "${rawPayload.createdBy}", current_timestamp)`,
       function(error, results) {
         if (error) throw error;
+        logger.debug(`Authorization DB insert result = ${JSON.stringify(results)}`);
         groupLegacyId = results.insertId;
         logger.debug(`Group has been created with id = ${groupLegacyId}`);
       }
     );
 
+    logger.debug(`Updating Neo4J DB with ${groupLegacyId}`);
     // Update `legacyGroupId` back to Neo4J
     await neoSession.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
       id: message.payload.id,
       oldId: groupLegacyId
     });
 
+    logger.debug(`Creating record in SecurityGroups`);
     // Create a record in `securitygroups` table of Infromix DB
     await informixSession.beginTransactionAsync();
 
