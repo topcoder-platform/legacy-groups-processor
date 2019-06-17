@@ -23,7 +23,7 @@ module.exports = {
   INFORMIX: {
     SERVER: process.env.IFX_SERVER || 'informixoltp_tcp',
     DATABASE: process.env.IFX_DATABASE || 'common_oltp',
-    HOST: process.env.INFORMIX_HOST || 'localhost',
+    HOST: process.env.IFX_HOST || 'localhost',
     PROTOCOL: process.env.IFX_PROTOCOL || 'onsoctcp',
     PORT: process.env.IFX_PORT || '2021',
     DB_LOCALE: process.env.IFX_DB_LOCALE || 'en_US.57372',
@@ -34,12 +34,12 @@ module.exports = {
 
   // aurora database configuration
   AURORA: {
-    POOL: process.env.POOL ? Number(process.env.POOL) : 10,
-    DB_NAME: process.env.DB_NAME || 'Authorization',
-    PORT: process.env.PORT || 8885,
-    DB_USERNAME: process.env.DB_USERNAME || 'informix',
-    DB_PASSWORD: process.env.DB_PASSWORD || '1nf0rm1x',
-    HOST: process.env.HOST || 'localhost'
+    POOL: process.env.AURORA_POOL ? Number(process.env.AURORA_POOL) : 10,
+    DB_NAME: process.env.AURORA_DB_NAME || 'Authorization',
+    PORT: process.env.AURORA_PORT || 8885,
+    DB_USERNAME: process.env.AURORA_USER || 'informix',
+    DB_PASSWORD: process.env.AURORA_PASSWORD || '1nf0rm1x',
+    HOST: process.env.AURORA_HOST || 'localhost'
   },
 
   // neo4j database configuration
