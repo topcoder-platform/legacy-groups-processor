@@ -139,7 +139,8 @@ createGroup.schema = {
           domain: joi.string().max(100),
           privateGroup: joi.boolean().required(),
           selfRegister: joi.boolean().required(),
-          createdBy: joi.string()
+          createdBy: joi.string(),
+          createdAt: joi.date()
         })
         .required()
     })
