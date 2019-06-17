@@ -29,7 +29,7 @@ async function checkGroupExist(name) {
 
   try {
     logger.debug(`Checking for existence of Group = ${name}`);
-    mySqlPool.query(`SELECT * FROM Authorization.group WHERE name = "${name}"`, function(error, results) {
+    mySqlPool.query(`SELECT * FROM group WHERE name = "${name}"`, function(error, results) {
       if (error) throw error;
       logger.debug(results);
       if (results.length > 0) {
