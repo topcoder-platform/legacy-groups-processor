@@ -31,6 +31,7 @@ async function checkGroupExist(name) {
     logger.debug(`Checking for existence of Group = ${name}`);
     mySqlPool.query(`SELECT * FROM Authorization.group WHERE name = "${name}"`, function(error, results) {
       if (error) throw error;
+      logger.debug(results);
       if (results.length > 0) {
         throw new Error(`The group name ${name} is already used`);
       }
@@ -124,7 +125,7 @@ async function createGroup(message) {
     await informixSession.rollbackTransactionAsync();
   } finally {
     neoSession.close();
-    await informixSession.closeAsync();
+    if (informixSession) await informixSession.closeAsync();
   }
 }
 
