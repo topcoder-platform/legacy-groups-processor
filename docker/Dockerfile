@@ -12,7 +12,7 @@ RUN wget -q -O node8.tar.xz https://nodejs.org/dist/v8.11.3/node-v8.11.3-linux-x
   && tar xfJ node8.tar.xz && rm -rf node8.tar.xz
 
 ENV SERVERNAME=$servername
-ENV INFORMIXDIR /opt/IBM/informix
+ENV INFORMIXDIR /opt/ibm/informix
 ENV INFORMIX_HOME /home/informix
 ENV INFORMIXSERVER informixoltp_tcp
 ENV INFORMIXTERM terminfo

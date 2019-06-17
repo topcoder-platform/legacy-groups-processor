@@ -32,9 +32,6 @@
     "topcoder-healthcheck-dropin": "^1.0.2",
     "winston": "^3.2.1"
   },
-  "engines": {
-    "node": "8.x"
-  },
   "standard": {
     "env": [
       "mocha"
