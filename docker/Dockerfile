@@ -22,7 +22,7 @@ ENV DBDATE Y4MD-
 ENV DBDELIMITER "|"
 
 COPY docker/esql ${INFORMIXDIR}/bin/
-
+RUN whoami
 RUN chmod +x ${INFORMIXDIR}/bin/esql
 RUN echo "informixoltp_tcp        onsoctcp        ${SERVERNAME:-informix}               sqlexec" \
   > ${INFORMIXDIR}/etc/sqlhosts.informixoltp_tcp
