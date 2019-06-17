@@ -12,7 +12,7 @@ RUN wget -q -O node8.tar.xz https://nodejs.org/dist/v8.11.3/node-v8.11.3-linux-x
   && tar xfJ node8.tar.xz && rm -rf node8.tar.xz
 
 ENV SERVERNAME=$servername
-ENV INFORMIXDIR /opt/ibm/informix
+ENV INFORMIXDIR /opt/IBM/informix
 ENV INFORMIX_HOME /home/informix
 ENV INFORMIXSERVER informixoltp_tcp
 ENV INFORMIXTERM terminfo
@@ -22,7 +22,6 @@ ENV DBDATE Y4MD-
 ENV DBDELIMITER "|"
 
 COPY docker/esql ${INFORMIXDIR}/bin/
-RUN whoami
 RUN chmod +x ${INFORMIXDIR}/bin/esql
 RUN echo "informixoltp_tcp        onsoctcp        ${SERVERNAME:-informix}               sqlexec" \
   > ${INFORMIXDIR}/etc/sqlhosts.informixoltp_tcp
