@@ -60,7 +60,7 @@ async function getAuroraConnection() {
  * Get Neo4J DB session.
  * @returns {Object} new db session
  */
-function getNeoSession() {
+async function getNeoSession() {
   return driver.session();
 }
 

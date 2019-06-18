@@ -51,13 +51,18 @@ async function checkGroupExist(name) {
 async function createGroup(message) {
   //get informix db connection
   logger.debug('Getting informix session');
-  const informixSession = helper.getInformixConnection();
+  const informixSession = await helper.getInformixConnection();
   logger.debug('informix session acquired');
 
   //get neo4j db connection
   logger.debug('Getting neo4j session');
-  const neoSession = helper.getNeoSession();
+  const neoSession = await helper.getNeoSession();
   logger.debug('neo4j session acquired');
+
+  //get aurora db connection
+  logger.debug('Getting auroradb session');
+  const mySqlSession = await helper.getAuroraConnection();
+  logger.debug('auroradb session acquired');
 
   try {
     // Check if group with same name exist or not
@@ -79,14 +84,12 @@ async function createGroup(message) {
     let groupLegacyId = '';
 
     // Insert data back to `Aurora DB`
-    const mySqlSession = await helper.getAuroraConnection();
-
+    await mySqlSession.beginTransaction();
     logger.debug('Creating group in Authorization DB');
 
-    mySqlSession.query('INSERT INTO `group` SET ?', rawPayload, function(error, results) {
+    await mySqlSession.query('INSERT INTO `group` SET ?', rawPayload, function(error, results) {
       if (error) throw error;
       logger.debug(`Authorization DB insert result = ${JSON.stringify(results)}`);
-      logger.debug(results.insertId);
       groupLegacyId = results.insertId;
       logger.debug(`Group has been created with id = ${groupLegacyId}`);
     });
@@ -119,12 +122,15 @@ async function createGroup(message) {
 
     await createGroupStmt.executeAsync(Object.values(normalizedPayload));
     await informixSession.commitTransactionAsync();
+    await mySqlSession.commit();
   } catch (error) {
     logger.error(error);
     await informixSession.rollbackTransactionAsync();
+    await mySqlSession.rollback();
   } finally {
     neoSession.close();
-    if (informixSession) await informixSession.closeAsync();
+    await informixSession.closeAsync();
+    await mySqlSession.release();
   }
 }
 
