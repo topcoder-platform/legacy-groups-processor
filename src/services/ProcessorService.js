@@ -30,7 +30,7 @@ async function checkGroupExist(name) {
 
   try {
     logger.debug(`Checking for existence of Group = ${name}`);
-    mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name], function(error, results) {
+    await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name], function(error, results) {
       if (error) throw error;
       logger.debug(results);
       if (results.length > 0) {
@@ -62,6 +62,7 @@ async function createGroup(message) {
   //get aurora db connection
   logger.debug('Getting auroradb session');
   const mySqlSession = await helper.getAuroraConnection();
+  const mySqlConn = mySqlSession.getConnection();
   logger.debug('auroradb session acquired');
 
   try {
@@ -84,10 +85,10 @@ async function createGroup(message) {
     let groupLegacyId = '';
 
     // Insert data back to `Aurora DB`
-    await mySqlSession.beginTransaction();
+    await mySqlConn.beginTransaction();
     logger.debug('Creating group in Authorization DB');
 
-    await mySqlSession.query('INSERT INTO `group` SET ?', rawPayload, function(error, results) {
+    await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload, function(error, results) {
       if (error) throw error;
       logger.debug(`Authorization DB insert result = ${JSON.stringify(results)}`);
       groupLegacyId = results.insertId;
@@ -122,15 +123,15 @@ async function createGroup(message) {
 
     await createGroupStmt.executeAsync(Object.values(normalizedPayload));
     await informixSession.commitTransactionAsync();
-    await mySqlSession.commit();
+    await mySqlConn.commit();
   } catch (error) {
     logger.error(error);
     await informixSession.rollbackTransactionAsync();
-    await mySqlSession.rollback();
+    await mySqlConn.rollback();
   } finally {
     neoSession.close();
     await informixSession.closeAsync();
-    await mySqlSession.release();
+    await mySqlConn.release();
   }
 }
 
