@@ -30,11 +30,13 @@ async function checkGroupExist(name) {
 
   logger.debug(`Checking for existence of Group = ${name}`);
   try {
-    let results = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
-    if (results.length > 0) {
-      throw new Error(`The group name ${name} is already used`);
-    }
-    logger.debug(`Group not found with name = ${name}`);
+    const [rows, fields] = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
+    logger.debug(rows);
+    logger.debug(fields);
+    // if (results.length > 0) {
+    throw new Error(`The group name ${name} is already used`);
+    // }
+    // logger.debug(`Group not found with name = ${name}`);
   } catch (error) {
     logger.error(error);
     throw error;
