@@ -53,7 +53,7 @@ async function getAuroraConnection() {
     database: auroraDatabase
   });
 
-  return Promise.promisifyAll(mysqlPool);
+  return mysqlPool.promise();
 }
 
 /**
