@@ -102,7 +102,7 @@ async function createGroup(message) {
     const params = {
       group_id: groupLegacyId,
       description: rawPayload.name,
-      created_user_id: rawPayload.createdBy,
+      create_user_id: rawPayload.createdBy,
       challenge_group_ind: 1
     };
     const normalizedPayload = _.omitBy(params, _.isUndefined);
@@ -119,6 +119,7 @@ async function createGroup(message) {
     await mySqlConn.query('COMMIT');
   } catch (error) {
     logger.error(error);
+    logger.debug('Rollback Transaction');
     await informixSession.rollbackTransactionAsync();
     await mySqlConn.query('ROLLBACK');
   } finally {
