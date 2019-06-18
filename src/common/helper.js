@@ -5,6 +5,7 @@
 const config = require('config');
 const ifxnjs = require('ifxnjs');
 const mysql = require('mysql');
+const util = require('util');
 
 // Informix connection related config values
 const Pool = ifxnjs.Pool;
@@ -53,7 +54,7 @@ async function getAuroraConnection() {
     database: auroraDatabase
   });
 
-  return mysqlPool;
+  return Promise.promisifyAll(mysqlPool);
 }
 
 /**
