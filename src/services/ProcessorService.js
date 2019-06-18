@@ -28,16 +28,13 @@ async function prepare(connection, sql) {
 async function checkGroupExist(name) {
   const mySqlPool = await helper.getAuroraConnection();
 
+  logger.debug(`Checking for existence of Group = ${name}`);
   try {
-    logger.debug(`Checking for existence of Group = ${name}`);
-    await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name], function(error, results) {
-      if (error) throw error;
-      logger.debug(results);
-      if (results.length > 0) {
-        throw new Error(`The group name ${name} is already used`);
-      }
-      logger.debug(`Group not found with name = ${name}`);
-    });
+    let results = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
+    if (results.length > 0) {
+      throw new Error(`The group name ${name} is already used`);
+    }
+    logger.debug(`Group not found with name = ${name}`);
   } catch (error) {
     logger.error(error);
     throw error;
