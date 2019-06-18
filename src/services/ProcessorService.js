@@ -79,18 +79,14 @@ async function createGroup(message) {
     };
     logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
 
-    let groupLegacyId = '';
-
     // Insert data back to `Aurora DB`
-    await mySqlConn.beginTransaction();
     logger.debug('Creating group in Authorization DB');
 
-    await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload, function(error, results) {
-      if (error) throw error;
-      logger.debug(`Authorization DB insert result = ${JSON.stringify(results)}`);
-      groupLegacyId = results.insertId;
-      logger.debug(`Group has been created with id = ${groupLegacyId}`);
-    });
+    await mySqlConn.beginTransaction();
+
+    const results = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
+    const groupLegacyId = results.insertId;
+    logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`);
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`);
     // Update `legacyGroupId` back to Neo4J
