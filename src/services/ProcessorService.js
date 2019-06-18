@@ -30,13 +30,11 @@ async function checkGroupExist(name) {
 
   logger.debug(`Checking for existence of Group = ${name}`);
   try {
-    const [rows, fields] = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
-    logger.debug(rows);
-    logger.debug(fields);
-    // if (results.length > 0) {
-    throw new Error(`The group name ${name} is already used`);
-    // }
-    // logger.debug(`Group not found with name = ${name}`);
+    const [rows] = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
+    if (rows.length > 0) {
+      throw new Error(`The group name ${name} is already used`);
+    }
+    logger.debug(`Group not found with name = ${name}`);
   } catch (error) {
     logger.error(error);
     throw error;
@@ -86,7 +84,7 @@ async function createGroup(message) {
     // await mySqlSession.getConnection().beginTransaction();
     await mySqlConn.query('START TRANSACTION');
     logger.debug('AuroraDB Transaction Started');
-    const results = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
+    const [results] = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
     const groupLegacyId = results.insertId;
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`);
 
