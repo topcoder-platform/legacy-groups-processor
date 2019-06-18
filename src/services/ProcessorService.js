@@ -82,7 +82,7 @@ async function createGroup(message) {
     // Insert data back to `Aurora DB`
     logger.debug('Creating group in Authorization DB');
     // await mySqlSession.getConnection().beginTransaction();
-
+    await mySqlConn.query('START TRANSACTION');
     logger.debug('AuroraDB Transaction Started');
     const results = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
     const groupLegacyId = results.insertId;
@@ -116,11 +116,11 @@ async function createGroup(message) {
 
     await createGroupStmt.executeAsync(Object.values(normalizedPayload));
     await informixSession.commitTransactionAsync();
-    await mySqlConn.commit();
+    await mySqlConn.query('COMMIT');
   } catch (error) {
     logger.error(error);
     await informixSession.rollbackTransactionAsync();
-    await mySqlConn.rollback();
+    await mySqlConn.query('ROLLBACK');
   } finally {
     neoSession.close();
     await informixSession.closeAsync();
