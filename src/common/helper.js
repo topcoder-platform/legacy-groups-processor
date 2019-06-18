@@ -4,7 +4,7 @@
 
 const config = require('config');
 const ifxnjs = require('ifxnjs');
-const mysql = require('mysql2/promise');
+const mysql = require('mysql2');
 
 // Informix connection related config values
 const Pool = ifxnjs.Pool;
