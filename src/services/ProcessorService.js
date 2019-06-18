@@ -59,7 +59,7 @@ async function createGroup(message) {
   //get aurora db connection
   logger.debug('Getting auroradb session');
   const mySqlSession = await helper.getAuroraConnection();
-  const mySqlConn = mySqlSession.getConnection();
+  const mySqlConn = await mySqlSession.getConnection();
   logger.debug('auroradb session acquired');
 
   try {
@@ -81,9 +81,9 @@ async function createGroup(message) {
 
     // Insert data back to `Aurora DB`
     logger.debug('Creating group in Authorization DB');
-
     await mySqlConn.beginTransaction();
 
+    logger.debug('AuroraDB Transaction Started');
     const results = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
     const groupLegacyId = results.insertId;
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`);
