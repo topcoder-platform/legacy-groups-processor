@@ -79,13 +79,14 @@ async function createGroup(message) {
     let groupLegacyId = '';
 
     // Insert data back to `Aurora DB`
-    const mySqlSession = helper.getAuroraConnection();
+    const mySqlSession = await helper.getAuroraConnection();
 
     logger.debug('Creating group in Authorization DB');
 
     mySqlSession.query('INSERT INTO `group` SET ?', rawPayload, function(error, results) {
       if (error) throw error;
       logger.debug(`Authorization DB insert result = ${JSON.stringify(results)}`);
+      logger.debug(results.insertId);
       groupLegacyId = results.insertId;
       logger.debug(`Group has been created with id = ${groupLegacyId}`);
     });
