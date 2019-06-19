@@ -81,6 +81,7 @@ async function createGroup(message) {
     logger.debug('Creating group in Authorization DB');
     await mySqlConn.query('START TRANSACTION');
     logger.debug('AuroraDB Transaction Started');
+
     const [results] = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
     const groupLegacyId = results.insertId;
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`);
@@ -309,25 +310,46 @@ deleteGroup.schema = {
  * @param {Object} message the kafka message
  */
 async function addMembersToGroup(message) {
-  //get informix db connection
-  // const informixSession = helper.getInformixConnection();
-  // try {
-  //   // Check if group with same name exist or not
-  //   await checkGroupExist(message.payload.name);
-  //   // Delete group from `Autorization DB`
-  //   let mySqlSession = helper.getAuroraConnection();
-  //   mySqlSession.query(`DELETE FROM Authorization.group WHERE id = "${message.payload.oldId}"`, function(error) {
-  //     if (error) throw error;
-  //   });
-  //   const deleteGroupStmt = await prepare(informixSession, 'delete from security_groups_test where id = ?');
-  //   await deleteGroupStmt.executeAsync([message.payload.oldId]);
-  //   await informixSession.commitTransactionAsync();
-  // } catch (error) {
-  //   logger.error(error);
-  //   await informixSession.rollbackTransactionAsync();
-  // } finally {
-  //   await informixSession.closeAsync();
-  // }
+  //get aurora db connection
+  logger.debug('Getting auroradb session');
+  const mySqlSession = await helper.getAuroraConnection();
+  const mySqlConn = await mySqlSession.getConnection();
+  logger.debug('auroradb session acquired');
+
+  try {
+    await checkGroupExist(message.payload.name);
+
+    const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
+    const rawPayload = {
+      group_id: Number(_.get(message, 'payload.oldId')),
+      membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
+      member_id: Number(
+        _.get(message, 'payload.membershipType') === 'group'
+          ? _.get(message, 'payload.memberOldId')
+          : _.get(message, 'payload.memberId')
+      ),
+      createdBy: Number(_.get(message, 'payload.createdBy')),
+      modifiedBy: Number(_.get(message, 'payload.createdBy')),
+      createdAt: timestamp,
+      modifiedAt: timestamp
+    };
+    logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
+
+    await mySqlConn.query('START TRANSACTION');
+    logger.debug('AuroraDB Transaction Started');
+
+    await mySqlConn.query('INSERT INTO `group_membership` SET ?', rawPayload);
+
+    await mySqlConn.query('COMMIT');
+    logger.debug('Records have been created in DBs');
+  } catch (error) {
+    logger.error(error);
+    await mySqlConn.query('ROLLBACK');
+    logger.debug('Rollback Transaction');
+  } finally {
+    await mySqlConn.release();
+    logger.debug('DB connection closed');
+  }
 }
 
 addMembersToGroup.schema = {

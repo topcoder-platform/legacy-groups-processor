@@ -72,6 +72,7 @@ const dataHandler = (messageSet, topic, partition) =>
       logger.debug('Successfully processed message');
     } catch (err) {
       logger.logFullError(err);
+      await consumer.commitOffset({ topic, partition, offset: m.offset });
     }
   });
 
