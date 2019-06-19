@@ -376,7 +376,7 @@ addMembersToGroup.schema = {
             .required(),
           createdBy: joi.string(),
           createdAt: joi.date(),
-          memberId: joi.string().uuid(),
+          memberId: joi.string(),
           oldId: joi.string().required(),
           memberOldId: joi.string(),
           membershipType: joi.string().required()
