@@ -18,6 +18,8 @@ module.exports = {
   CREATE_GROUP_TOPIC: process.env.CREATE_GROUP_TOPIC || 'groups.notification.create',
   UPDATE_GROUP_TOPIC: process.env.UPDATE_GROUP_TOPIC || 'groups.notification.update',
   DELETE_GROUP_TOPIC: process.env.DELETE_GROUP_TOPIC || 'groups.notification.delete',
+  KAFKA_GROUP_MEMBER_ADD_TOPIC: process.env.KAFKA_GROUP_MEMBER_ADD_TOPIC || 'groups.notification.member.add',
+  KAFKA_GROUP_MEMBER_DELETE_TOPIC: process.env.KAFKA_GROUP_MEMBER_DELETE_TOPIC || 'groups.notification.member.delete',
 
   // informix database configuration
   INFORMIX: {

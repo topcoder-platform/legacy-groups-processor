@@ -24,9 +24,7 @@ const dataHandler = (messageSet, topic, partition) =>
   Promise.each(messageSet, async m => {
     const message = m.message.value.toString('utf8');
     logger.info(
-      `Handle Kafka event message; Topic: ${topic}; Partition: ${partition}; Offset: ${
-        m.offset
-      }; Message: ${message}.`
+      `Handle Kafka event message; Topic: ${topic}; Partition: ${partition}; Offset: ${m.offset}; Message: ${message}.`
     );
     let messageJSON;
     try {
@@ -41,11 +39,7 @@ const dataHandler = (messageSet, topic, partition) =>
     }
 
     if (messageJSON.topic !== topic) {
-      logger.error(
-        `The message topic ${
-          messageJSON.topic
-        } doesn't match the Kafka topic ${topic}.`
-      );
+      logger.error(`The message topic ${messageJSON.topic} doesn't match the Kafka topic ${topic}.`);
 
       // commit the message and ignore it
       await consumer.commitOffset({ topic, partition, offset: m.offset });
@@ -63,6 +57,12 @@ const dataHandler = (messageSet, topic, partition) =>
         case config.DELETE_GROUP_TOPIC:
           await ProcessorService.deleteGroup(messageJSON);
           break;
+        case config.KAFKA_GROUP_MEMBER_ADD_TOPIC:
+          await ProcessorService.addMembersToGroup(messageJSON);
+          break;
+        case config.KAFKA_GROUP_MEMBER_DELETE_TOPIC:
+          await ProcessorService.removeMembersFromGroup(messageJSON);
+          break;
         default:
           throw new Error(`Invalid topic: ${topic}`);
       }
@@ -77,10 +77,7 @@ const dataHandler = (messageSet, topic, partition) =>
 
 // check if there is kafka connection alive
 const check = () => {
-  if (
-    !consumer.client.initialBrokers &&
-    !consumer.client.initialBrokers.length
-  ) {
+  if (!consumer.client.initialBrokers && !consumer.client.initialBrokers.length) {
     return false;
   }
   let connected = true;
@@ -94,7 +91,9 @@ const check = () => {
 const topics = [
   config.CREATE_GROUP_TOPIC,
   config.UPDATE_GROUP_TOPIC,
-  config.DELETE_GROUP_TOPIC
+  config.DELETE_GROUP_TOPIC,
+  config.KAFKA_GROUP_MEMBER_ADD_TOPIC,
+  config.KAFKA_GROUP_MEMBER_DELETE_TOPIC
 ];
 
 consumer

@@ -63,7 +63,6 @@ async function createGroup(message) {
   logger.debug('auroradb session acquired');
 
   try {
-    // Check if group with same name exist or not
     await checkGroupExist(message.payload.name);
 
     const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
@@ -79,9 +78,7 @@ async function createGroup(message) {
     };
     logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
 
-    // Insert data back to `Aurora DB`
     logger.debug('Creating group in Authorization DB');
-    // await mySqlSession.getConnection().beginTransaction();
     await mySqlConn.query('START TRANSACTION');
     logger.debug('AuroraDB Transaction Started');
     const [results] = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
@@ -89,14 +86,12 @@ async function createGroup(message) {
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`);
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`);
-    // Update `legacyGroupId` back to Neo4J
     await neoSession.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
       id: message.payload.id,
-      oldId: groupLegacyId
+      oldId: String(groupLegacyId)
     });
 
     logger.debug(`Creating record in SecurityGroups`);
-    // Create a record in `securitygroups` table of Infromix DB
     await informixSession.beginTransactionAsync();
 
     const params = {
@@ -117,15 +112,17 @@ async function createGroup(message) {
     await createGroupStmt.executeAsync(Object.values(normalizedPayload));
     await informixSession.commitTransactionAsync();
     await mySqlConn.query('COMMIT');
+    logger.debug('Records have been created in DBs');
   } catch (error) {
     logger.error(error);
-    logger.debug('Rollback Transaction');
     await informixSession.rollbackTransactionAsync();
     await mySqlConn.query('ROLLBACK');
+    logger.debug('Rollback Transaction');
   } finally {
     neoSession.close();
     await informixSession.closeAsync();
     await mySqlConn.release();
+    logger.debug('DB connection closed');
   }
 }
 
@@ -332,6 +329,27 @@ async function addMembersToGroup(message) {
   //   await informixSession.closeAsync();
   // }
 }
+
+addMembersToGroup.schema = {
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          oldId: joi
+            .number()
+            .integer()
+            .required()
+        })
+        .required()
+    })
+    .required()
+};
 
 module.exports = {
   createGroup,
