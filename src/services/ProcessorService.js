@@ -306,7 +306,6 @@ deleteGroup.schema = {
 };
 
 /**
- * TODO - Implement this function
  * Add members to the group
  * @param {Object} message the kafka message
  */
@@ -386,11 +385,76 @@ addMembersToGroup.schema = {
     .required()
 };
 
+/**
+ * Remove member from group
+ * @param {Object} message the kafka message
+ */
+async function removeMembersFromGroup(message) {
+  //get aurora db connection
+  logger.debug('Getting auroradb session');
+  const mySqlSession = await helper.getAuroraConnection();
+  const mySqlConn = await mySqlSession.getConnection();
+  logger.debug('auroradb session acquired');
+
+  try {
+    const count = await checkGroupExist(message.payload.name);
+    if (count == 0) {
+      throw new Error(`Group with name ${message.payload.name} is not exist`);
+    }
+
+    const rawPayload = {
+      group_id: Number(_.get(message, 'payload.oldId')),
+      member_id: Number(_.get(message, 'payload.memberId'))
+    };
+
+    logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
+
+    await mySqlConn.query('START TRANSACTION');
+    logger.debug('AuroraDB Transaction Started');
+
+    await mySqlConn.query('DELETE FROM `group_membership` WHERE `group_id` = ? and `member_id` = ?', rawPayload);
+
+    await mySqlConn.query('COMMIT');
+    logger.debug('Records have been deleted from DBs');
+  } catch (error) {
+    logger.error(error);
+    await mySqlConn.query('ROLLBACK');
+    logger.debug('Rollback Transaction');
+  } finally {
+    await mySqlConn.release();
+    logger.debug('DB connection closed');
+  }
+}
+
+removeMembersFromGroup.schema = {
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          groupId: joi
+            .string()
+            .uuid()
+            .required(),
+          oldId: joi.string().required(),
+          memberId: joi.string().required()
+        })
+        .required()
+    })
+    .required()
+};
+
 module.exports = {
   createGroup,
   updateGroup,
   deleteGroup,
-  addMembersToGroup
+  addMembersToGroup,
+  removeMembersFromGroup
 };
 
 logger.buildService(module.exports);
