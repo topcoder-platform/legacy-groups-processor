@@ -412,7 +412,10 @@ async function removeMembersFromGroup(message) {
     await mySqlConn.query('START TRANSACTION');
     logger.debug('AuroraDB Transaction Started');
 
-    await mySqlConn.query('DELETE FROM `group_membership` WHERE `group_id` = ? and `member_id` = ?', rawPayload);
+    await mySqlConn.query('DELETE FROM `group_membership` WHERE `group_id` = ? and `member_id` = ?', [
+      rawPayload.group_id,
+      rawPayload.member_id
+    ]);
 
     await mySqlConn.query('COMMIT');
     logger.debug('Records have been deleted from DBs');
