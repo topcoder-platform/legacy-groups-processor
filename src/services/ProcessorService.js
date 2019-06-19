@@ -341,10 +341,18 @@ addMembersToGroup.schema = {
       payload: joi
         .object()
         .keys({
-          oldId: joi
-            .number()
-            .integer()
-            .required()
+          id: joi.string().uuid(),
+          groupId: joi.string().uuid(),
+          name: joi
+            .string()
+            .min(2)
+            .max(50)
+            .required(),
+          createdBy: joi.string(),
+          createdAt: joi.date(),
+          memberId: joi.string().uuid(),
+          oldId: joi.string().required(),
+          membershipType: joi.string().required()
         })
         .required()
     })
