@@ -441,6 +441,7 @@ removeMembersFromGroup.schema = {
             .string()
             .uuid()
             .required(),
+          name: joi.string().required(),
           oldId: joi.string().required(),
           memberId: joi.string().required()
         })
