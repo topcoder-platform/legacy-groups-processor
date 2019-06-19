@@ -31,10 +31,8 @@ async function checkGroupExist(name) {
   logger.debug(`Checking for existence of Group = ${name}`);
   try {
     const [rows] = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
-    if (rows.length > 0) {
-      throw new Error(`The group name ${name} is already used`);
-    }
-    logger.debug(`Group not found with name = ${name}`);
+    logger.debug(`${rows.length} records found for group name = ${name}`);
+    return rows.length;
   } catch (error) {
     logger.error(error);
     throw error;
@@ -63,7 +61,10 @@ async function createGroup(message) {
   logger.debug('auroradb session acquired');
 
   try {
-    await checkGroupExist(message.payload.name);
+    const count = await checkGroupExist(message.payload.name);
+    if (count > 0) {
+      throw new Error(`Group with name ${message.payload.name} is already exist`);
+    }
 
     const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
     const rawPayload = {
@@ -317,7 +318,10 @@ async function addMembersToGroup(message) {
   logger.debug('auroradb session acquired');
 
   try {
-    await checkGroupExist(message.payload.name);
+    const count = await checkGroupExist(message.payload.name);
+    if (count == 0) {
+      throw new Error(`Group with name ${message.payload.name} is not exist`);
+    }
 
     const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
     const rawPayload = {
