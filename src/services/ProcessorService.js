@@ -274,7 +274,7 @@ updateGroup.schema = {
           updatedBy: joi.string(),
           updatedAt: joi.date(),
           createdBy: joi.string(),
-          createAt: joi.date()
+          createdAt: joi.date()
         })
         .required()
     })
