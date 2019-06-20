@@ -177,9 +177,9 @@ async function updateGroup(message) {
   logger.debug('auroradb session acquired');
 
   try {
-    const count = await checkGroupExist(message.payload.orgName);
+    const count = await checkGroupExist(message.payload.oldName);
     if (count == 0) {
-      throw new Error(`Group with name ${message.payload.orgName} not exist`);
+      throw new Error(`Group with name ${message.payload.oldName} not exist`);
     }
 
     const timestamp = moment(Date.parse(message.payload.updatedBy)).format('YYYY-MM-DD HH:mm:ss');
@@ -255,7 +255,7 @@ updateGroup.schema = {
             .min(2)
             .max(50)
             .required(),
-          orgName: joi
+          oldName: joi
             .string()
             .min(2)
             .max(50)
