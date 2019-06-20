@@ -340,28 +340,21 @@ async function deleteGroup(message) {
 }
 
 deleteGroup.schema = {
-  message: joi.array().items(
-    joi
-      .object()
-      .keys({
-        id: joi.string().uuid(),
-        name: joi
-          .string()
-          .min(2)
-          .max(50),
-        oldId: joi
-          .number()
-          .integer()
-          .required(),
-        description: joi.string().max(500),
-        domain: joi.string().max(100),
-        privateGroup: joi.boolean(),
-        selfRegister: joi.boolean(),
-        createdBy: joi.string(),
-        createdAt: joi.date()
-      })
-      .required()
-  )
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          groups: joi.array().required()
+        })
+        .required()
+    })
+    .required()
 };
 
 /**
