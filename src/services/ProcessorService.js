@@ -182,13 +182,13 @@ async function updateGroup(message) {
       throw new Error(`Group with name ${message.payload.oldName} not exist`);
     }
 
-    const timestamp = moment(Date.parse(message.payload.updatedBy)).format('YYYY-MM-DD HH:mm:ss');
+    const timestamp = moment(Date.parse(message.payload.updatedAt)).format('YYYY-MM-DD HH:mm:ss');
     const updateParams = [
       _.get(message, 'payload.name'),
       _.get(message, 'payload.description'),
       _.get(message, 'payload.privateGroup') ? true : false,
       _.get(message, 'payload.selfRegister') ? true : false,
-      Number(_.get(message, 'payload.modifiedBy')),
+      Number(_.get(message, 'payload.updatedBy')),
       timestamp,
       Number(_.get(message, 'payload.oldId'))
     ];
