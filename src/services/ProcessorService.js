@@ -263,7 +263,7 @@ updateGroup.schema = {
           domain: joi
             .string()
             .max(100)
-            .optional(),
+            .allow('', null),
           privateGroup: joi.boolean().required(),
           selfRegister: joi.boolean().required(),
           updatedBy: joi.string(),
