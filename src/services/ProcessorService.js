@@ -108,7 +108,7 @@ async function createGroup(message) {
 
     const createGroupStmt = await prepare(
       informixSession,
-      `insert into security_groups_test (${fields.join(', ')}) values (${values.join(', ')})`
+      `insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`
     );
 
     await createGroupStmt.executeAsync(Object.values(normalizedPayload));
@@ -216,7 +216,7 @@ async function updateGroup(message) {
 
     const updateGroupStmt = await prepare(
       informixSession,
-      `update security_groups_test set ${fields} where group_id = ${params.group_id}`
+      `update security_groups set ${fields} where group_id = ${params.group_id}`
     );
 
     await updateGroupStmt.executeAsync(Object.values(normalizedPayload));
