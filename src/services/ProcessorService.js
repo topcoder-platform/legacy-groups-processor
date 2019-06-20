@@ -267,7 +267,9 @@ updateGroup.schema = {
           privateGroup: joi.boolean().required(),
           selfRegister: joi.boolean().required(),
           updatedBy: joi.string(),
-          updatedAt: joi.date()
+          updatedAt: joi.date(),
+          createdBy: joi.string(),
+          createdAt: joi.date()
         })
         .required()
     })
