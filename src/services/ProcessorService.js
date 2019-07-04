@@ -72,8 +72,8 @@ async function createGroup(message) {
       description: _.get(message, 'payload.description'),
       private_group: _.get(message, 'payload.privateGroup') ? true : false,
       self_register: _.get(message, 'payload.selfRegister') ? true : false,
-      createdBy: Number(_.get(message, 'payload.createdBy')),
-      modifiedBy: Number(_.get(message, 'payload.createdBy')),
+      createdBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
+      modifiedBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
       createdAt: timestamp,
       modifiedAt: timestamp
     };
@@ -188,7 +188,7 @@ async function updateGroup(message) {
       _.get(message, 'payload.description'),
       _.get(message, 'payload.privateGroup') ? true : false,
       _.get(message, 'payload.selfRegister') ? true : false,
-      Number(_.get(message, 'payload.updatedBy')),
+      _.isNull(_.get(message, 'payload.updatedBy')) ? 0 : Number(_.get(message, 'payload.updatedBy')),
       timestamp,
       Number(_.get(message, 'payload.oldId'))
     ];
@@ -334,8 +334,8 @@ async function addMembersToGroup(message) {
           ? _.get(message, 'payload.memberOldId')
           : _.get(message, 'payload.memberId')
       ),
-      createdBy: Number(_.get(message, 'payload.createdBy')),
-      modifiedBy: Number(_.get(message, 'payload.createdBy')),
+      createdBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
+      modifiedBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
       createdAt: timestamp,
       modifiedAt: timestamp
     };
