@@ -5,9 +5,7 @@ services:
     build:
       context: ../
       dockerfile: docker/Dockerfile
-    env_file:
-      - api.env
     volumes:
-      - "../:/app"
+      - "../.nyc_output:/app/.nyc_output"
+      - "../coverage:/app/coverage"
     network_mode: "host"
-    command: run start:docker

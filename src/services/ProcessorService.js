@@ -2,10 +2,11 @@
  * Processor Service
  */
 
-const _ = require('lodash')
-const joi = require('joi')
-const logger = require('../common/logger')
-const helper = require('../common/helper')
+const _ = require('lodash');
+const joi = require('joi');
+const logger = require('../common/logger');
+const helper = require('../common/helper');
+const moment = require('moment');
 
 /**
  * Prepare Informix statement
@@ -13,9 +14,9 @@ const helper = require('../common/helper')
  * @param {String} sql the sql
  * @return {Object} Informix statement
  */
-async function prepare (connection, sql) {
-  const stmt = await connection.prepareAsync(sql)
-  return Promise.promisifyAll(stmt)
+async function prepare(connection, sql) {
+  const stmt = await connection.prepareAsync(sql);
+  return Promise.promisifyAll(stmt);
 }
 
 /**
@@ -24,22 +25,17 @@ async function prepare (connection, sql) {
  * @param {String} name the group name
  * @param {Object} connection the Informix connection
  */
-async function checkDuplicateGroup (id, name, connection) {
-  const result = await connection.queryAsync(`select * from group where name = '${name}'${id ? ` and id <> ${id}` : ''}`)
-  if (result.length > 0) {
-    throw new Error(`The group name ${name} is already used`)
-  }
-}
+async function checkGroupExist(name) {
+  const mySqlPool = await helper.getAuroraConnection();
 
-/**
- * Check group exist
- * @param {Number} id the group id
- * @param {Object} connection the Informix connection
- */
-async function checkGroupExist (id, connection) {
-  const result = await connection.queryAsync(`select * from group where id = ${id}`)
-  if (result.length === 0) {
-    throw new Error(`The group with id: ${id} doesn't exist`)
+  logger.debug(`Checking for existence of Group = ${name}`);
+  try {
+    const [rows] = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
+    logger.debug(`${rows.length} records found for group name = ${name}`);
+    return rows.length;
+  } catch (error) {
+    logger.error(error);
+    throw error;
   }
 }
 
@@ -47,149 +43,425 @@ async function checkGroupExist (id, connection) {
  * Process create group message
  * @param {Object} message the kafka message
  */
-async function createGroup (message) {
-  // informix database connection
-  const connection = await helper.getInformixConnection()
-  // neo4j session
-  const session = helper.createDBSession()
+async function createGroup(message) {
+  //get informix db connection
+  logger.debug('Getting informix session');
+  const informixSession = await helper.getInformixConnection();
+  logger.debug('informix session acquired');
+
+  //get neo4j db connection
+  logger.debug('Getting neo4j session');
+  const neoSession = await helper.getNeoSession();
+  logger.debug('neo4j session acquired');
+
+  //get aurora db connection
+  logger.debug('Getting auroradb session');
+  const mySqlSession = await helper.getAuroraConnection();
+  const mySqlConn = await mySqlSession.getConnection();
+  logger.debug('auroradb session acquired');
 
   try {
-    await checkDuplicateGroup(undefined, message.payload.name, connection)
-
-    const generateId = await connection.queryAsync('select first 1 sequence_group_seq.nextval from country')
-    const id = generateId[0].nextval
-
-    // prepare the statement for inserting the group data to common_oltp.group table
-    const rawPayload = {
-      id,
-      name: _.get(message, 'payload.name'),
-      description: _.get(message, 'payload.description'),
-      domain: _.get(message, 'payload.domain'),
-      private_group: _.get(message, 'payload.privateGroup') ? 't' : 'f',
-      self_register: _.get(message, 'payload.selfRegister') ? 't' : 'f',
-      createdBy: _.get(message, 'payload.createdBy')
+    const count = await checkGroupExist(message.payload.name);
+    if (count > 0) {
+      throw new Error(`Group with name ${message.payload.name} is already exist`);
     }
 
-    const normalizedPayload = _.omitBy(rawPayload, _.isUndefined)
-    const keys = Object.keys(normalizedPayload)
-    const fields = ['createdAt'].concat(keys)
-    const values = ['current'].concat(_.fill(Array(keys.length), '?'))
+    const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
+    const rawPayload = {
+      name: _.get(message, 'payload.name'),
+      description: _.get(message, 'payload.description'),
+      private_group: _.get(message, 'payload.privateGroup') ? true : false,
+      self_register: _.get(message, 'payload.selfRegister') ? true : false,
+      createdBy: Number(_.get(message, 'payload.createdBy')),
+      modifiedBy: Number(_.get(message, 'payload.createdBy')),
+      createdAt: timestamp,
+      modifiedAt: timestamp
+    };
+    logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
 
-    const createGroupStmt = await prepare(connection, `insert into group (${fields.join(', ')}) values (${values.join(', ')})`)
+    logger.debug('Creating group in Authorization DB');
+    await mySqlConn.query('START TRANSACTION');
+    logger.debug('AuroraDB Transaction Started');
 
-    await createGroupStmt.executeAsync(Object.values(normalizedPayload))
+    const [results] = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
+    const groupLegacyId = results.insertId;
+    logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`);
 
-    // update group data in neo4j
-    await session.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`,
-      { id: message.payload.id, oldId: id })
+    logger.debug(`Updating Neo4J DB with ${groupLegacyId}`);
+    await neoSession.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
+      id: message.payload.id,
+      oldId: String(groupLegacyId)
+    });
+
+    logger.debug(`Creating record in SecurityGroups`);
+    await informixSession.beginTransactionAsync();
+
+    const params = {
+      group_id: groupLegacyId,
+      description: rawPayload.name,
+      create_user_id: rawPayload.createdBy,
+      challenge_group_ind: 1
+    };
+    const normalizedPayload = _.omitBy(params, _.isUndefined);
+    const fields = Object.keys(normalizedPayload);
+    const values = _.fill(Array(fields.length), '?');
+
+    const createGroupStmt = await prepare(
+      informixSession,
+      `insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`
+    );
+
+    await createGroupStmt.executeAsync(Object.values(normalizedPayload));
+    await informixSession.commitTransactionAsync();
+    await mySqlConn.query('COMMIT');
+    logger.debug('Records have been created in DBs');
+  } catch (error) {
+    logger.error(error);
+    await informixSession.rollbackTransactionAsync();
+    await mySqlConn.query('ROLLBACK');
+    logger.debug('Rollback Transaction');
   } finally {
-    session.close()
-    await connection.closeAsync()
+    neoSession.close();
+    await informixSession.closeAsync();
+    await mySqlConn.release();
+    logger.debug('DB connection closed');
   }
 }
 
 createGroup.schema = {
-  message: joi.object().keys({
-    topic: joi.string().required(),
-    originator: joi.string().required(),
-    timestamp: joi.date().required(),
-    'mime-type': joi.string().required(),
-    payload: joi.object().keys({
-      id: joi.string().uuid().required(),
-      name: joi.string().min(2).max(50).required(),
-      description: joi.string().max(500),
-      domain: joi.string().max(100),
-      privateGroup: joi.boolean().required(),
-      selfRegister: joi.boolean().required(),
-      createdBy: joi.string()
-    }).required()
-  }).required()
-}
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          id: joi
+            .string()
+            .uuid()
+            .required(),
+          name: joi
+            .string()
+            .min(2)
+            .max(50)
+            .required(),
+          description: joi.string().max(500),
+          domain: joi.string().max(100),
+          privateGroup: joi.boolean().required(),
+          selfRegister: joi.boolean().required(),
+          createdBy: joi.string(),
+          createdAt: joi.date()
+        })
+        .required()
+    })
+    .required()
+};
 
 /**
  * Process update group message
  * @param {Object} message the kafka message
  */
-async function updateGroup (message) {
-  const connection = await helper.getInformixConnection()
+async function updateGroup(message) {
+  //get informix db connection
+  logger.debug('Getting informix session');
+  const informixSession = await helper.getInformixConnection();
+  logger.debug('informix session acquired');
+
+  //get aurora db connection
+  logger.debug('Getting auroradb session');
+  const mySqlSession = await helper.getAuroraConnection();
+  const mySqlConn = await mySqlSession.getConnection();
+  logger.debug('auroradb session acquired');
+
   try {
-    await checkGroupExist(message.payload.oldId, connection)
-    if (message.payload.name) {
-      await checkDuplicateGroup(message.payload.oldId, message.payload.name, connection)
+    const count = await checkGroupExist(message.payload.oldName);
+    if (count == 0) {
+      throw new Error(`Group with name ${message.payload.oldName} not exist`);
     }
 
-    // prepare the statement for updating the group data to common_oltp.group table
-    const rawPayload = {
-      name: _.get(message, 'payload.name'),
-      description: _.get(message, 'payload.description', null),
-      domain: _.get(message, 'payload.domain', null),
-      private_group: _.get(message, 'payload.privateGroup') ? 't' : 'f',
-      self_register: _.get(message, 'payload.selfRegister') ? 't' : 'f',
-      modifiedBy: _.get(message, 'payload.updatedBy')
-    }
+    const timestamp = moment(Date.parse(message.payload.updatedAt)).format('YYYY-MM-DD HH:mm:ss');
+    const updateParams = [
+      _.get(message, 'payload.name'),
+      _.get(message, 'payload.description'),
+      _.get(message, 'payload.privateGroup') ? true : false,
+      _.get(message, 'payload.selfRegister') ? true : false,
+      Number(_.get(message, 'payload.updatedBy')),
+      timestamp,
+      Number(_.get(message, 'payload.oldId'))
+    ];
+    logger.debug(`rawpayload = ${updateParams}`);
 
-    const normalizedPayload = _.omitBy(rawPayload, _.isUndefined)
-    const keys = Object.keys(normalizedPayload)
+    logger.debug('Creating group in Authorization DB');
+    await mySqlConn.query('START TRANSACTION');
+    logger.debug('AuroraDB Transaction Started');
 
-    const updateStatements = keys.map(key => normalizedPayload[key] === null
-      ? `${key} = null` : `${key} = '${normalizedPayload[key]}'`).join(', ')
-    const updateGroupQuery = `update group set ${updateStatements}, modifiedAt = current where id = ${message.payload.oldId}`
+    const updateQuery =
+      'UPDATE `group` SET `name` = ?, `description` = ?, `private_group` = ?, `self_register` = ?, `modifiedBy` = ?, modifiedAt = ? WHERE `id` = ?';
 
-    await connection.queryAsync(updateGroupQuery)
+    const [results] = await mySqlConn.query(updateQuery, updateParams);
+
+    logger.debug(`Creating record in SecurityGroups`);
+    await informixSession.beginTransactionAsync();
+
+    const params = {
+      group_id: Number(_.get(message, 'payload.oldId')),
+      description: _.get(message, 'payload.name')
+    };
+    const normalizedPayload = _.omitBy(params, _.isUndefined);
+    const keys = Object.keys(normalizedPayload);
+    const fields = keys.map(key => `${key} = ?`).join(', ');
+
+    const updateGroupStmt = await prepare(
+      informixSession,
+      `update security_groups set ${fields} where group_id = ${params.group_id}`
+    );
+
+    await updateGroupStmt.executeAsync(Object.values(normalizedPayload));
+    await informixSession.commitTransactionAsync();
+    await mySqlConn.query('COMMIT');
+    logger.debug('Records have been updated in DBs');
+  } catch (error) {
+    logger.error(error);
+    await informixSession.rollbackTransactionAsync();
+    await mySqlConn.query('ROLLBACK');
+    logger.debug('Rollback Transaction');
   } finally {
-    await connection.closeAsync()
+    await informixSession.closeAsync();
+    await mySqlConn.release();
+    logger.debug('DB connection closed');
   }
 }
 
 updateGroup.schema = {
-  message: joi.object().keys({
-    topic: joi.string().required(),
-    originator: joi.string().required(),
-    timestamp: joi.date().required(),
-    'mime-type': joi.string().required(),
-    payload: joi.object().keys({
-      oldId: joi.number().required(),
-      name: joi.string().min(2).max(50).required(),
-      description: joi.string().max(500),
-      domain: joi.string().max(100),
-      privateGroup: joi.boolean().required(),
-      selfRegister: joi.boolean().required(),
-      updatedBy: joi.string()
-    }).required()
-  }).required()
-}
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          id: joi
+            .string()
+            .uuid()
+            .required(),
+          name: joi
+            .string()
+            .min(2)
+            .max(50)
+            .required(),
+          oldName: joi
+            .string()
+            .min(2)
+            .max(50)
+            .required(),
+          oldId: joi
+            .number()
+            .integer()
+            .required(),
+          description: joi.string().max(500),
+          domain: joi
+            .string()
+            .max(100)
+            .allow('', null),
+          privateGroup: joi.boolean().required(),
+          selfRegister: joi.boolean().required(),
+          updatedBy: joi.string(),
+          updatedAt: joi.date(),
+          createdBy: joi.string(),
+          createdAt: joi.date()
+        })
+        .required()
+    })
+    .required()
+};
 
 /**
+ * ! Implement this method
  * Process delete group message
  * @param {Object} message the kafka message
  */
-async function deleteGroup (message) {
-  const connection = await helper.getInformixConnection()
-  try {
-    await checkGroupExist(message.payload.oldId, connection)
-    const deleteGroupStmt = await prepare(connection, 'delete from group where id = ?')
-    await deleteGroupStmt.executeAsync([message.payload.oldId])
-  } finally {
-    await connection.closeAsync()
-  }
+async function deleteGroup(message) {
+  //get informix db connection
 }
 
 deleteGroup.schema = {
-  message: joi.object().keys({
-    topic: joi.string().required(),
-    originator: joi.string().required(),
-    timestamp: joi.date().required(),
-    'mime-type': joi.string().required(),
-    payload: joi.object().keys({
-      oldId: joi.number().required()
-    }).required()
-  }).required()
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          groups: joi.array().required()
+        })
+        .required()
+    })
+    .required()
+};
+
+/**
+ * Add members to the group
+ * @param {Object} message the kafka message
+ */
+async function addMembersToGroup(message) {
+  //get aurora db connection
+  logger.debug('Getting auroradb session');
+  const mySqlSession = await helper.getAuroraConnection();
+  const mySqlConn = await mySqlSession.getConnection();
+  logger.debug('auroradb session acquired');
+
+  try {
+    const count = await checkGroupExist(message.payload.name);
+    if (count == 0) {
+      throw new Error(`Group with name ${message.payload.name} is not exist`);
+    }
+
+    const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
+    const rawPayload = {
+      group_id: Number(_.get(message, 'payload.oldId')),
+      membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
+      member_id: Number(
+        _.get(message, 'payload.membershipType') === 'group'
+          ? _.get(message, 'payload.memberOldId')
+          : _.get(message, 'payload.memberId')
+      ),
+      createdBy: Number(_.get(message, 'payload.createdBy')),
+      modifiedBy: Number(_.get(message, 'payload.createdBy')),
+      createdAt: timestamp,
+      modifiedAt: timestamp
+    };
+    logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
+
+    await mySqlConn.query('START TRANSACTION');
+    logger.debug('AuroraDB Transaction Started');
+
+    await mySqlConn.query('INSERT INTO `group_membership` SET ?', rawPayload);
+
+    await mySqlConn.query('COMMIT');
+    logger.debug('Records have been created in DBs');
+  } catch (error) {
+    logger.error(error);
+    await mySqlConn.query('ROLLBACK');
+    logger.debug('Rollback Transaction');
+  } finally {
+    await mySqlConn.release();
+    logger.debug('DB connection closed');
+  }
 }
+
+addMembersToGroup.schema = {
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          id: joi.string().uuid(),
+          groupId: joi.string().uuid(),
+          name: joi
+            .string()
+            .min(2)
+            .max(50)
+            .required(),
+          createdBy: joi.string(),
+          createdAt: joi.date(),
+          memberId: joi.string(),
+          oldId: joi.string().required(),
+          memberOldId: joi.string(),
+          membershipType: joi.string().required()
+        })
+        .required()
+    })
+    .required()
+};
+
+/**
+ * Remove member from group
+ * @param {Object} message the kafka message
+ */
+async function removeMembersFromGroup(message) {
+  //get aurora db connection
+  logger.debug('Getting auroradb session');
+  const mySqlSession = await helper.getAuroraConnection();
+  const mySqlConn = await mySqlSession.getConnection();
+  logger.debug('auroradb session acquired');
+
+  try {
+    const count = await checkGroupExist(message.payload.name);
+    if (count == 0) {
+      throw new Error(`Group with name ${message.payload.name} is not exist`);
+    }
+
+    const rawPayload = {
+      group_id: Number(_.get(message, 'payload.oldId')),
+      member_id: Number(_.get(message, 'payload.memberId'))
+    };
+
+    logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`);
+
+    await mySqlConn.query('START TRANSACTION');
+    logger.debug('AuroraDB Transaction Started');
+
+    await mySqlConn.query('DELETE FROM `group_membership` WHERE `group_id` = ? and `member_id` = ?', [
+      rawPayload.group_id,
+      rawPayload.member_id
+    ]);
+
+    await mySqlConn.query('COMMIT');
+    logger.debug('Records have been deleted from DBs');
+  } catch (error) {
+    logger.error(error);
+    await mySqlConn.query('ROLLBACK');
+    logger.debug('Rollback Transaction');
+  } finally {
+    await mySqlConn.release();
+    logger.debug('DB connection closed');
+  }
+}
+
+removeMembersFromGroup.schema = {
+  message: joi
+    .object()
+    .keys({
+      topic: joi.string().required(),
+      originator: joi.string().required(),
+      timestamp: joi.date().required(),
+      'mime-type': joi.string().required(),
+      payload: joi
+        .object()
+        .keys({
+          groupId: joi
+            .string()
+            .uuid()
+            .required(),
+          name: joi.string().required(),
+          oldId: joi.string().required(),
+          memberId: joi.string().required()
+        })
+        .required()
+    })
+    .required()
+};
 
 module.exports = {
   createGroup,
   updateGroup,
-  deleteGroup
-}
+  deleteGroup,
+  addMembersToGroup,
+  removeMembersFromGroup
+};
 
-logger.buildService(module.exports)
+logger.buildService(module.exports);

@@ -6,6 +6,7 @@ module.exports = {
   LOG_LEVEL: process.env.LOG_LEVEL || 'debug',
 
   KAFKA_URL: process.env.KAFKA_URL || 'localhost:9092',
+
   // below are used for secure Kafka connection, they are optional
   // for the local Kafka, they are not needed
   KAFKA_CLIENT_CERT: process.env.KAFKA_CLIENT_CERT,
@@ -17,21 +18,34 @@ module.exports = {
   CREATE_GROUP_TOPIC: process.env.CREATE_GROUP_TOPIC || 'groups.notification.create',
   UPDATE_GROUP_TOPIC: process.env.UPDATE_GROUP_TOPIC || 'groups.notification.update',
   DELETE_GROUP_TOPIC: process.env.DELETE_GROUP_TOPIC || 'groups.notification.delete',
+  KAFKA_GROUP_MEMBER_ADD_TOPIC: process.env.KAFKA_GROUP_MEMBER_ADD_TOPIC || 'groups.notification.member.add',
+  KAFKA_GROUP_MEMBER_DELETE_TOPIC: process.env.KAFKA_GROUP_MEMBER_DELETE_TOPIC || 'groups.notification.member.delete',
 
   // informix database configuration
   INFORMIX: {
-    SERVER: process.env.IFX_SERVER || 'informixoltp_tcp', // informix server
-    DATABASE: process.env.IFX_DATABASE || 'common_oltp', // informix database
-    HOST: process.env.INFORMIX_HOST || 'localhost', // host
+    SERVER: process.env.IFX_SERVER || 'informixoltp_tcp',
+    DATABASE: process.env.IFX_DATABASE || 'common_oltp',
+    HOST: process.env.IFX_HOST || 'localhost',
     PROTOCOL: process.env.IFX_PROTOCOL || 'onsoctcp',
-    PORT: process.env.IFX_PORT || '2021', // port
+    PORT: process.env.IFX_PORT || '2021',
     DB_LOCALE: process.env.IFX_DB_LOCALE || 'en_US.57372',
-    USER: process.env.IFX_USER || 'informix', // user
-    PASSWORD: process.env.IFX_PASSWORD || '1nf0rm1x', // password
-    POOL_MAX_SIZE: parseInt(process.env.IFX_POOL_MAX_SIZE) || 10 // use connection pool in processor, the pool size
+    USER: process.env.IFX_USER || 'informix',
+    PASSWORD: process.env.IFX_PASSWORD || '1nf0rm1x',
+    POOL_MAX_SIZE: process.env.IFX_POOL_MAX_SIZE ? Number(process.env.IFX_POOL_MAX_SIZE) : 10
   },
 
+  // aurora database configuration
+  AURORA: {
+    POOL: process.env.AURORA_POOL ? Number(process.env.AURORA_POOL) : 10,
+    DB_NAME: process.env.AURORA_DB_NAME || 'Authorization',
+    PORT: process.env.AURORA_PORT || 8885,
+    DB_USERNAME: process.env.AURORA_USER || 'informix',
+    DB_PASSWORD: process.env.AURORA_PASSWORD || '1nf0rm1x',
+    HOST: process.env.AURORA_HOST || 'localhost'
+  },
+
+  // neo4j database configuration
   GRAPH_DB_URI: process.env.GRAPH_DB_URI || process.env.GRAPHENEDB_BOLT_URL || 'bolt://localhost:7687',
   GRAPH_DB_USER: process.env.GRAPH_DB_USER || process.env.GRAPHENEDB_BOLT_USER || 'neo4j',
-  GRAPH_DB_PASSWORD: process.env.GRAPH_DB_PASSWORD || process.env.GRAPHENEDB_BOLT_PASSWORD || '123456'
-}
+  GRAPH_DB_PASSWORD: process.env.GRAPH_DB_PASSWORD || process.env.GRAPHENEDB_BOLT_PASSWORD || 'neo'
+};
