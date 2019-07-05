@@ -67,13 +67,16 @@ async function createGroup(message) {
     }
 
     const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
+
+    const createdBy = _.i;
+
     const rawPayload = {
       name: _.get(message, 'payload.name'),
       description: _.get(message, 'payload.description'),
       private_group: _.get(message, 'payload.privateGroup') ? true : false,
       self_register: _.get(message, 'payload.selfRegister') ? true : false,
-      createdBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
-      modifiedBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
+      ...(_.get(message, 'payload.createdBy') ? { createdBy: Number(_.get(message, 'payload.createdBy')) } : {}),
+      ...(_.get(message, 'payload.createdBy') ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) } : {}),
       createdAt: timestamp,
       modifiedAt: timestamp
     };
@@ -188,7 +191,7 @@ async function updateGroup(message) {
       _.get(message, 'payload.description'),
       _.get(message, 'payload.privateGroup') ? true : false,
       _.get(message, 'payload.selfRegister') ? true : false,
-      _.isNull(_.get(message, 'payload.updatedBy')) ? 0 : Number(_.get(message, 'payload.updatedBy')),
+      ...(_.get(message, 'payload.updatedBy') ? [Number(_.get(message, 'payload.updatedBy'))] : []),
       timestamp,
       Number(_.get(message, 'payload.oldId'))
     ];
@@ -334,8 +337,8 @@ async function addMembersToGroup(message) {
           ? _.get(message, 'payload.memberOldId')
           : _.get(message, 'payload.memberId')
       ),
-      createdBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
-      modifiedBy: _.isNull(_.get(message, 'payload.createdBy')) ? 0 : Number(_.get(message, 'payload.createdBy')),
+      ...(_.get(message, 'payload.createdBy') ? { createdBy: Number(_.get(message, 'payload.createdBy')) } : {}),
+      ...(_.get(message, 'payload.createdBy') ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) } : {}),
       createdAt: timestamp,
       modifiedAt: timestamp
     };
