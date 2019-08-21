@@ -30,7 +30,10 @@ async function checkGroupExist(name) {
 
   logger.debug(`Checking for existence of Group = ${name}`);
   try {
-    const [rows] = await mySqlPool.query('SELECT * FROM `group` WHERE `name` = ?', [name]);
+    const [rows] = await mySqlPool.query(
+      'SELECT * FROM `group` WHERE `name` = ?',
+      [name]
+    );
     logger.debug(`${rows.length} records found for group name = ${name}`);
     return rows.length;
   } catch (error) {
@@ -63,10 +66,14 @@ async function createGroup(message) {
   try {
     const count = await checkGroupExist(message.payload.name);
     if (count > 0) {
-      throw new Error(`Group with name ${message.payload.name} is already exist`);
+      throw new Error(
+        `Group with name ${message.payload.name} is already exist`
+      );
     }
 
-    const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
+    const timestamp = moment(Date.parse(message.timestamp)).format(
+      'YYYY-MM-DD HH:mm:ss'
+    );
 
     const createdBy = _.i;
 
@@ -75,8 +82,12 @@ async function createGroup(message) {
       description: _.get(message, 'payload.description'),
       private_group: _.get(message, 'payload.privateGroup') ? true : false,
       self_register: _.get(message, 'payload.selfRegister') ? true : false,
-      ...(_.get(message, 'payload.createdBy') ? { createdBy: Number(_.get(message, 'payload.createdBy')) } : {}),
-      ...(_.get(message, 'payload.createdBy') ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) } : {}),
+      ...(_.get(message, 'payload.createdBy')
+        ? { createdBy: Number(_.get(message, 'payload.createdBy')) }
+        : {}),
+      ...(_.get(message, 'payload.createdBy')
+        ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) }
+        : {}),
       createdAt: timestamp,
       modifiedAt: timestamp
     };
@@ -86,15 +97,23 @@ async function createGroup(message) {
     await mySqlConn.query('START TRANSACTION');
     logger.debug('AuroraDB Transaction Started');
 
-    const [results] = await mySqlConn.query('INSERT INTO `group` SET ?', rawPayload);
+    const [results] = await mySqlConn.query(
+      'INSERT INTO `group` SET ?',
+      rawPayload
+    );
     const groupLegacyId = results.insertId;
-    logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`);
+    logger.debug(
+      `Group has been created with id = ${groupLegacyId} in Authorization DB`
+    );
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`);
-    await neoSession.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
-      id: message.payload.id,
-      oldId: String(groupLegacyId)
-    });
+    await neoSession.run(
+      `MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`,
+      {
+        id: message.payload.id,
+        oldId: String(groupLegacyId)
+      }
+    );
 
     logger.debug(`Creating record in SecurityGroups`);
     await informixSession.beginTransactionAsync();
@@ -111,7 +130,9 @@ async function createGroup(message) {
 
     const createGroupStmt = await prepare(
       informixSession,
-      `insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`
+      `insert into security_groups (${fields.join(', ')}) values (${values.join(
+        ', '
+      )})`
     );
 
     await createGroupStmt.executeAsync(Object.values(normalizedPayload));
@@ -149,7 +170,7 @@ createGroup.schema = {
           name: joi
             .string()
             .min(2)
-            .max(50)
+            .max(150)
             .required(),
           description: joi.string().max(500),
           domain: joi.string().max(100),
@@ -185,13 +206,17 @@ async function updateGroup(message) {
       throw new Error(`Group with name ${message.payload.oldName} not exist`);
     }
 
-    const timestamp = moment(Date.parse(message.payload.updatedAt)).format('YYYY-MM-DD HH:mm:ss');
+    const timestamp = moment(Date.parse(message.payload.updatedAt)).format(
+      'YYYY-MM-DD HH:mm:ss'
+    );
     const updateParams = [
       _.get(message, 'payload.name'),
       _.get(message, 'payload.description'),
       _.get(message, 'payload.privateGroup') ? true : false,
       _.get(message, 'payload.selfRegister') ? true : false,
-      ...(_.get(message, 'payload.updatedBy') ? [Number(_.get(message, 'payload.updatedBy'))] : []),
+      ...(_.get(message, 'payload.updatedBy')
+        ? [Number(_.get(message, 'payload.updatedBy'))]
+        : []),
       timestamp,
       Number(_.get(message, 'payload.oldId'))
     ];
@@ -256,12 +281,12 @@ updateGroup.schema = {
           name: joi
             .string()
             .min(2)
-            .max(50)
+            .max(150)
             .required(),
           oldName: joi
             .string()
             .min(2)
-            .max(50)
+            .max(150)
             .required(),
           oldId: joi
             .number()
@@ -328,17 +353,24 @@ async function addMembersToGroup(message) {
       throw new Error(`Group with name ${message.payload.name} is not exist`);
     }
 
-    const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss');
+    const timestamp = moment(Date.parse(message.timestamp)).format(
+      'YYYY-MM-DD HH:mm:ss'
+    );
     const rawPayload = {
       group_id: Number(_.get(message, 'payload.oldId')),
-      membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
+      membership_type:
+        _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
       member_id: Number(
         _.get(message, 'payload.membershipType') === 'group'
           ? _.get(message, 'payload.memberOldId')
           : _.get(message, 'payload.memberId')
       ),
-      ...(_.get(message, 'payload.createdBy') ? { createdBy: Number(_.get(message, 'payload.createdBy')) } : {}),
-      ...(_.get(message, 'payload.createdBy') ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) } : {}),
+      ...(_.get(message, 'payload.createdBy')
+        ? { createdBy: Number(_.get(message, 'payload.createdBy')) }
+        : {}),
+      ...(_.get(message, 'payload.createdBy')
+        ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) }
+        : {}),
       createdAt: timestamp,
       modifiedAt: timestamp
     };
@@ -377,7 +409,7 @@ addMembersToGroup.schema = {
           name: joi
             .string()
             .min(2)
-            .max(50)
+            .max(150)
             .required(),
           createdBy: joi.string(),
           createdAt: joi.date(),
@@ -418,10 +450,10 @@ async function removeMembersFromGroup(message) {
     await mySqlConn.query('START TRANSACTION');
     logger.debug('AuroraDB Transaction Started');
 
-    await mySqlConn.query('DELETE FROM `group_membership` WHERE `group_id` = ? and `member_id` = ?', [
-      rawPayload.group_id,
-      rawPayload.member_id
-    ]);
+    await mySqlConn.query(
+      'DELETE FROM `group_membership` WHERE `group_id` = ? and `member_id` = ?',
+      [rawPayload.group_id, rawPayload.member_id]
+    );
 
     await mySqlConn.query('COMMIT');
     logger.debug('Records have been deleted from DBs');
