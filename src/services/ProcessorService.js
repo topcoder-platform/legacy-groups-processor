@@ -173,12 +173,12 @@ createGroup.schema = {
             .max(150)
             .required(),
           description: joi.string().max(500),
-          domain: joi.string().max(100),
+          domain: joi.string().max(100).allow('', null),
           privateGroup: joi.boolean().required(),
           selfRegister: joi.boolean().required(),
           createdBy: joi.string(),
           createdAt: joi.date(),
-          ssoId: joi.string().max(100)
+          ssoId: joi.string().max(100).allow('', null)
         })
         .required()
     })
@@ -304,7 +304,7 @@ updateGroup.schema = {
           updatedAt: joi.date(),
           createdBy: joi.string(),
           createdAt: joi.date(),
-          ssoId: joi.string().max(100)
+          ssoId: joi.string().max(100).allow('', null)
         })
         .required()
     })
