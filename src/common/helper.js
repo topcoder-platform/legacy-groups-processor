@@ -32,19 +32,6 @@ const informixConnString =
 const neo4j = require('neo4j-driver').v1;
 const driver = neo4j.driver(config.GRAPH_DB_URI, neo4j.auth.basic(config.GRAPH_DB_USER, config.GRAPH_DB_PASSWORD));
 
-// async function getAuroraConnection() {
-//   let mysqlPool = mysql.createPool({
-//     connectionLimit: auroraPool,
-//     host: auroraHost,
-//     user: auroraUsername,
-//     password: auroraPassword,
-//     port: auroraPort,
-//     database: auroraDatabase
-//   });
-
-//   return mysqlPool.promise();
-// }
-
 /**
  * Create Aurora DB Connection Pool
  */
