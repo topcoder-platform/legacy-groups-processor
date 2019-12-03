@@ -29,21 +29,9 @@ const informixConnString =
   ';PWD=' +
   config.get('INFORMIX.PASSWORD');
 
-// AuroraDB connection related config values
-const auroraDatabase = config.get('AURORA.DB_NAME');
-const auroraUsername = config.get('AURORA.DB_USERNAME');
-const auroraPassword = config.get('AURORA.DB_PASSWORD');
-const auroraPort = config.get('AURORA.PORT');
-const auroraHost = config.get('AURORA.HOST');
-const auroraPool = config.get('AURORA.POOL');
-
 const neo4j = require('neo4j-driver').v1;
 const driver = neo4j.driver(config.GRAPH_DB_URI, neo4j.auth.basic(config.GRAPH_DB_USER, config.GRAPH_DB_PASSWORD));
 
-/**
- * Create Aurora DB Connection Pool
- * @returns {Object} new aurora db connection
- */
 // async function getAuroraConnection() {
 //   let mysqlPool = mysql.createPool({
 //     connectionLimit: auroraPool,
@@ -57,11 +45,16 @@ const driver = neo4j.driver(config.GRAPH_DB_URI, neo4j.auth.basic(config.GRAPH_D
 //   return mysqlPool.promise();
 // }
 
+/**
+ * Create Aurora DB Connection Pool
+ */
 var mysqlPool  = mysql.createPool({
-  host     : 'localhost',
-  user     : 'root',
-  password : 'root',
-  database : 'guess'
+  connectionLimit: config.get('AURORA.POOL'),
+  host: config.get('AURORA.HOST'),
+  user: config.get('AURORA.DB_USERNAME'),
+  password: config.get('AURORA.DB_PASSWORD'),
+  port: config.get('AURORA.PORT'),
+  database: config.get('AURORA.DB_NAME')
 }).promise();
 
 
