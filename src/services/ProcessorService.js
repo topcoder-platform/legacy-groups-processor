@@ -26,11 +26,11 @@ async function prepare(connection, sql) {
  * @param {Object} connection the Informix connection
  */
 async function checkGroupExist(name) {
-  const mySqlPool = await helper.getAuroraConnection();
+  const mySqlConn = await helper.mysqlPool.getConnection()
 
   logger.debug(`Checking for existence of Group = ${name}`);
   try {
-    const [rows] = await mySqlPool.query(
+    const [rows] = await mySqlConn.query(
       'SELECT * FROM `group` WHERE `name` = ?',
       [name]
     );
@@ -39,6 +39,8 @@ async function checkGroupExist(name) {
   } catch (error) {
     logger.error(error);
     throw error;
+  } finally {
+    await mySqlConn.release();
   }
 }
 

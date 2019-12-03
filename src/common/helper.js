@@ -103,7 +103,6 @@ function getKafkaOptions() {
 module.exports = {
   getNeoSession,
   getInformixConnection,
-  getAuroraConnection,
   getKafkaOptions,
   mysqlPool
 };
