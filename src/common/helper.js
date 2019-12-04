@@ -8,6 +8,7 @@ const mysql = require('mysql2');
 
 // Informix connection related config values
 const Pool = ifxnjs.Pool;
+
 const pool = Promise.promisifyAll(new Pool());
 pool.setMaxPoolSize(config.get('INFORMIX.POOL_MAX_SIZE'));
 const informixConnString =
@@ -28,33 +29,21 @@ const informixConnString =
   ';PWD=' +
   config.get('INFORMIX.PASSWORD');
 
-// AuroraDB connection related config values
-const auroraDatabase = config.get('AURORA.DB_NAME');
-const auroraUsername = config.get('AURORA.DB_USERNAME');
-const auroraPassword = config.get('AURORA.DB_PASSWORD');
-const auroraPort = config.get('AURORA.PORT');
-const auroraHost = config.get('AURORA.HOST');
-const auroraPool = config.get('AURORA.POOL');
-
 const neo4j = require('neo4j-driver').v1;
 const driver = neo4j.driver(config.GRAPH_DB_URI, neo4j.auth.basic(config.GRAPH_DB_USER, config.GRAPH_DB_PASSWORD));
 
 /**
  * Create Aurora DB Connection Pool
- * @returns {Object} new aurora db connection
  */
-async function getAuroraConnection() {
-  let mysqlPool = mysql.createPool({
-    connectionLimit: auroraPool,
-    host: auroraHost,
-    user: auroraUsername,
-    password: auroraPassword,
-    port: auroraPort,
-    database: auroraDatabase
-  });
+var mysqlPool  = mysql.createPool({
+  connectionLimit: config.get('AURORA.POOL'),
+  host: config.get('AURORA.HOST'),
+  user: config.get('AURORA.DB_USERNAME'),
+  password: config.get('AURORA.DB_PASSWORD'),
+  port: config.get('AURORA.PORT'),
+  database: config.get('AURORA.DB_NAME')
+}).promise();
 
-  return mysqlPool.promise();
-}
 
 /**
  * Get Neo4J DB session.
@@ -94,6 +83,6 @@ function getKafkaOptions() {
 module.exports = {
   getNeoSession,
   getInformixConnection,
-  getAuroraConnection,
-  getKafkaOptions
+  getKafkaOptions,
+  mysqlPool
 };

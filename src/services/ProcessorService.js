@@ -26,11 +26,11 @@ async function prepare(connection, sql) {
  * @param {Object} connection the Informix connection
  */
 async function checkGroupExist(name) {
-  const mySqlPool = await helper.getAuroraConnection();
+  const mySqlConn = await helper.mysqlPool.getConnection()
 
   logger.debug(`Checking for existence of Group = ${name}`);
   try {
-    const [rows] = await mySqlPool.query(
+    const [rows] = await mySqlConn.query(
       'SELECT * FROM `group` WHERE `name` = ?',
       [name]
     );
@@ -39,6 +39,8 @@ async function checkGroupExist(name) {
   } catch (error) {
     logger.error(error);
     throw error;
+  } finally {
+    await mySqlConn.release();
   }
 }
 
@@ -59,8 +61,7 @@ async function createGroup(message) {
 
   //get aurora db connection
   logger.debug('Getting auroradb session');
-  const mySqlSession = await helper.getAuroraConnection();
-  const mySqlConn = await mySqlSession.getConnection();
+  const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired');
 
   try {
@@ -173,11 +174,12 @@ createGroup.schema = {
             .max(150)
             .required(),
           description: joi.string().max(500),
-          domain: joi.string().max(100),
+          domain: joi.string().max(100).allow('', null),
           privateGroup: joi.boolean().required(),
           selfRegister: joi.boolean().required(),
           createdBy: joi.string(),
-          createdAt: joi.date()
+          createdAt: joi.date(),
+          ssoId: joi.string().max(100).allow('', null)
         })
         .required()
     })
@@ -196,8 +198,7 @@ async function updateGroup(message) {
 
   //get aurora db connection
   logger.debug('Getting auroradb session');
-  const mySqlSession = await helper.getAuroraConnection();
-  const mySqlConn = await mySqlSession.getConnection();
+  const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired');
 
   try {
@@ -302,7 +303,8 @@ updateGroup.schema = {
           updatedBy: joi.string(),
           updatedAt: joi.date(),
           createdBy: joi.string(),
-          createdAt: joi.date()
+          createdAt: joi.date(),
+          ssoId: joi.string().max(100).allow('', null)
         })
         .required()
     })
@@ -343,8 +345,7 @@ deleteGroup.schema = {
 async function addMembersToGroup(message) {
   //get aurora db connection
   logger.debug('Getting auroradb session');
-  const mySqlSession = await helper.getAuroraConnection();
-  const mySqlConn = await mySqlSession.getConnection();
+  const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired');
 
   try {
@@ -430,8 +431,7 @@ addMembersToGroup.schema = {
 async function removeMembersFromGroup(message) {
   //get aurora db connection
   logger.debug('Getting auroradb session');
-  const mySqlSession = await helper.getAuroraConnection();
-  const mySqlConn = await mySqlSession.getConnection();
+  const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired');
 
   try {
