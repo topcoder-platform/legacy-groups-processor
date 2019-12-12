@@ -179,7 +179,8 @@ createGroup.schema = {
           selfRegister: joi.boolean().required(),
           createdBy: joi.string(),
           createdAt: joi.date(),
-          ssoId: joi.string().max(100).allow('', null)
+          ssoId: joi.string().max(100).allow('', null),
+          status: joi.string()
         })
         .required()
     })
@@ -304,7 +305,8 @@ updateGroup.schema = {
           updatedAt: joi.date(),
           createdBy: joi.string(),
           createdAt: joi.date(),
-          ssoId: joi.string().max(100).allow('', null)
+          ssoId: joi.string().max(100).allow('', null),
+          status: joi.string()
         })
         .required()
     })
