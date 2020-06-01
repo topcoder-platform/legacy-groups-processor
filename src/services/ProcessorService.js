@@ -180,6 +180,7 @@ createGroup.schema = {
           createdBy: joi.string(),
           createdAt: joi.date(),
           ssoId: joi.string().max(100).allow('', null),
+          organizationId: Joi.optionalId(),
           status: joi.string()
         })
         .required()
@@ -306,6 +307,7 @@ updateGroup.schema = {
           createdBy: joi.string(),
           createdAt: joi.date(),
           ssoId: joi.string().max(100).allow('', null),
+          organizationId: Joi.optionalId(),
           status: joi.string()
         })
         .required()
