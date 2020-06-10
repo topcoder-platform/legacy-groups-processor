@@ -20,6 +20,10 @@ module.exports = {
   DELETE_GROUP_TOPIC: process.env.DELETE_GROUP_TOPIC || 'groups.notification.delete',
   KAFKA_GROUP_MEMBER_ADD_TOPIC: process.env.KAFKA_GROUP_MEMBER_ADD_TOPIC || 'groups.notification.member.add',
   KAFKA_GROUP_MEMBER_DELETE_TOPIC: process.env.KAFKA_GROUP_MEMBER_DELETE_TOPIC || 'groups.notification.member.delete',
+  KAFKA_GROUP_UNIVERSAL_MEMBER_ADD_TOPIC:
+    process.env.KAFKA_GROUP_UNIVERSAL_MEMBER_ADD_TOPIC || 'groups.notification.universalmember.add',
+  KAFKA_GROUP_UNIVERSAL_MEMBER_DELETE_TOPIC:
+    process.env.KAFKA_GROUP_UNIVERSAL_MEMBER_DELETE_TOPIC || 'groups.notification.universalmember.delete',
 
   // informix database configuration
   INFORMIX: {
@@ -47,5 +51,14 @@ module.exports = {
   // neo4j database configuration
   GRAPH_DB_URI: process.env.GRAPH_DB_URI || process.env.GRAPHENEDB_BOLT_URL || 'bolt://localhost:7687',
   GRAPH_DB_USER: process.env.GRAPH_DB_USER || process.env.GRAPHENEDB_BOLT_USER || 'neo4j',
-  GRAPH_DB_PASSWORD: process.env.GRAPH_DB_PASSWORD || process.env.GRAPHENEDB_BOLT_PASSWORD || 'neo'
-};
+  GRAPH_DB_PASSWORD: process.env.GRAPH_DB_PASSWORD || process.env.GRAPHENEDB_BOLT_PASSWORD || 'neo',
+
+  // M2M token
+  // below 5 params are used to get TC m2m token
+  AUTH0_URL: process.env.AUTH0_URL,
+  AUTH0_AUDIENCE: process.env.AUTH0_AUDIENCE || 'https://www.topcoder.com',
+  TOKEN_CACHE_TIME: process.env.TOKEN_CACHE_TIME,
+  AUTH0_CLIENT_ID: process.env.AUTH0_CLIENT_ID,
+  AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
+  AUTH0_PROXY_SERVER_URL: process.env.AUTH0_PROXY_SERVER_URL
+}

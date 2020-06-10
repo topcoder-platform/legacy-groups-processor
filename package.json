@@ -20,6 +20,7 @@
     "standard": "^11.0.1"
   },
   "dependencies": {
+    "axios": "^0.19.2",
     "bluebird": "^3.5.3",
     "config": "^1.31.0",
     "get-parameter-names": "^0.3.0",
@@ -31,6 +32,8 @@
     "neo4j-driver": "^1.7.2",
     "no-kafka": "^3.4.3",
     "q": "^1.5.1",
+    "request-promise": "^4.2.5",
+    "tc-core-library-js": "^1.0.9",
     "topcoder-healthcheck-dropin": "^1.0.2",
     "winston": "^3.2.1"
   },
