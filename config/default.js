@@ -53,8 +53,9 @@ module.exports = {
   GRAPH_DB_USER: process.env.GRAPH_DB_USER || process.env.GRAPHENEDB_BOLT_USER || 'neo4j',
   GRAPH_DB_PASSWORD: process.env.GRAPH_DB_PASSWORD || process.env.GRAPHENEDB_BOLT_PASSWORD || 'neo',
 
-  // M2M token
-  // below 5 params are used to get TC m2m token
+  // UBahn API
+  UBAHN_API: process.env.UBAHN_API,
+  UBAHN_TOPCODER_ORG_NAME: process.env.UBAHN_TOPCODER_ORG_NAME,
   AUTH0_URL: process.env.AUTH0_URL,
   AUTH0_AUDIENCE: process.env.AUTH0_AUDIENCE || 'https://www.topcoder.com',
   TOKEN_CACHE_TIME: process.env.TOKEN_CACHE_TIME,

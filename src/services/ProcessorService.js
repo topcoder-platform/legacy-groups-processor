@@ -3,7 +3,7 @@
  */
 
 const _ = require('lodash')
-const axios = require('axios')
+const config = require('config')
 const joi = require('joi')
 const moment = require('moment')
 const request = require("request-promise");
@@ -462,7 +462,7 @@ async function addUniversalMembersToGroup(message) {
 
     const options = {
       method: "GET",
-      uri: `https://api.topcoder.com/v3/members/_search?fields=userId,email,handle,firstName,lastName&query=handle:${message.payload.handle}`,
+      uri: `${config.UBAHN_API}/users/${message.payload.universalUID}/externalProfiles?organizationName=${config.UBAHN_TOPCODER_ORG_NAME}`,
       headers: {
         "User-Agent": "Request-Promise",
         "Content-Type": "application/json",
@@ -471,7 +471,7 @@ async function addUniversalMembersToGroup(message) {
     };
   
     const response = await request(options);
-    const memberId = JSON.parse(response).result.content[0].userId;
+    const memberId = _.head(JSON.parse(response)).externalId
 
     await neoSession.run(`MATCH (u:User {universalUID: {universalUID}}) SET u.id={memberId} RETURN g`, {
       universalUID: message.payload.universalUID,
