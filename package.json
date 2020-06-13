@@ -25,7 +25,7 @@
     "get-parameter-names": "^0.3.0",
     "ifxnjs": "^8.0.1",
     "joi": "^14.3.0",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.13",
     "moment": "^2.24.0",
     "mysql2": "^1.6.5",
     "neo4j-driver": "^1.7.2",
