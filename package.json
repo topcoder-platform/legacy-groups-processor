@@ -32,7 +32,7 @@
     "no-kafka": "^3.4.3",
     "q": "^1.5.1",
     "request-promise": "^4.2.5",
-    "tc-core-library-js": "2.6.4",
+    "tc-core-library-js": "appirio-tech/tc-core-library-js.git#v2.6.4",
     "topcoder-healthcheck-dropin": "^1.0.2",
     "winston": "^3.2.1"
   },
