@@ -6,7 +6,7 @@ const _ = require('lodash')
 const config = require('config')
 const joi = require('joi')
 const moment = require('moment')
-const request = require("request-promise");
+const request = require('request-promise')
 const logger = require('../common/logger')
 const helper = require('../common/helper')
 
@@ -312,19 +312,48 @@ async function addMembersToGroup(message) {
     }
 
     const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss')
-    const rawPayload = {
-      group_id: Number(_.get(message, 'payload.oldId')),
-      membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
-      member_id: Number(
-        _.get(message, 'payload.membershipType') === 'group'
-          ? _.get(message, 'payload.memberOldId')
-          : _.get(message, 'payload.memberId')
-      ),
-      ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
-      ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
-      createdAt: timestamp,
-      modifiedAt: timestamp
+    let rawPayload
+    if (message.payload.universalUID) {
+      const token = await helper.getM2Mtoken()
+
+      const options = {
+        method: 'GET',
+        uri: `${config.UBAHN_API}/users/${message.payload.universalUID}/externalProfiles?organizationName=${config.UBAHN_TOPCODER_ORG_NAME}`,
+        headers: {
+          'User-Agent': 'Request-Promise',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      }
+
+      const response = await request(options)
+      const memberId = _.head(JSON.parse(response)).externalId
+
+      rawPayload = {
+        group_id: Number(_.get(message, 'payload.oldId')),
+        membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
+        member_id: memberId
+        ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
+        ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
+        createdAt: timestamp,
+        modifiedAt: timestamp
+      }
+    } else {
+      rawPayload = {
+        group_id: Number(_.get(message, 'payload.oldId')),
+        membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
+        member_id: Number(
+          _.get(message, 'payload.membershipType') === 'group'
+            ? _.get(message, 'payload.memberOldId')
+            : _.get(message, 'payload.memberId')
+        ),
+        ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
+        ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
+        createdAt: timestamp,
+        modifiedAt: timestamp
+      }
     }
+
     logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`)
 
     await mySqlConn.query('START TRANSACTION')
@@ -361,6 +390,7 @@ addMembersToGroup.schema = {
           createdBy: joi.string(),
           createdAt: joi.date(),
           memberId: joi.string(),
+          universalUID: joi.string(),
           oldId: joi.string().required(),
           memberOldId: joi.string(),
           membershipType: joi.string().required()
@@ -440,108 +470,6 @@ module.exports = {
   deleteGroup,
   addMembersToGroup,
   removeMembersFromGroup
-}
-
-/**
- * Add universal members to the group
- * @param {Object} message the kafka message
- */
-async function addUniversalMembersToGroup(message) {
-  //get aurora db connection
-  logger.debug('Getting auroradb session')
-  const mySqlConn = await helper.mysqlPool.getConnection()
-  logger.debug('auroradb session acquired')
-
-  //get neo4j db connection
-  logger.debug('Getting neo4j session')
-  const neoSession = await helper.getNeoSession()
-  logger.debug('neo4j session acquired')
-
-  try {
-    const token = await helper.getM2Mtoken()
-
-    const options = {
-      method: "GET",
-      uri: `${config.UBAHN_API}/users/${message.payload.universalUID}/externalProfiles?organizationName=${config.UBAHN_TOPCODER_ORG_NAME}`,
-      headers: {
-        "User-Agent": "Request-Promise",
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    };
-  
-    const response = await request(options);
-    const memberId = _.head(JSON.parse(response)).externalId
-
-    await neoSession.run(`MATCH (u:User {universalUID: {universalUID}}) SET u.id={memberId} RETURN g`, {
-      universalUID: message.payload.universalUID,
-      memberId: memberId
-    })
-
-    const count = await checkGroupExist(message.payload.name)
-    if (count == 0) {
-      throw new Error(`Group with name ${message.payload.name} is not exist`)
-    }
-
-    const timestamp = moment(Date.parse(message.timestamp)).format('YYYY-MM-DD HH:mm:ss')
-    const rawPayload = {
-      group_id: Number(_.get(message, 'payload.oldId')),
-      membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
-      member_id: Number(
-        _.get(message, 'payload.membershipType') === 'group'
-          ? _.get(message, 'payload.memberOldId')
-          : _.get(message, 'memberId')
-      ),
-      ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
-      ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
-      createdAt: timestamp,
-      modifiedAt: timestamp
-    }
-    logger.debug(`rawpayload = ${JSON.stringify(rawPayload)}`)
-
-    await mySqlConn.query('START TRANSACTION')
-    logger.debug('AuroraDB Transaction Started')
-
-    await mySqlConn.query('INSERT INTO `group_membership` SET ?', rawPayload)
-
-    await mySqlConn.query('COMMIT')
-    logger.debug('Records have been created in DBs')
-  } catch (error) {
-    logger.error(error)
-    await mySqlConn.query('ROLLBACK')
-    logger.debug('Rollback Transaction')
-  } finally {
-    await mySqlConn.release()
-    logger.debug('DB connection closed')
-  }
-}
-
-addUniversalMembersToGroup.schema = {
-  message: joi
-    .object()
-    .keys({
-      topic: joi.string().required(),
-      originator: joi.string().required(),
-      timestamp: joi.date().required(),
-      'mime-type': joi.string().required(),
-      payload: joi
-        .object()
-        .keys({
-          id: joi.string().uuid(),
-          groupId: joi.string().uuid(),
-          name: joi.string().min(2).max(150).required(),
-          createdBy: joi.string(),
-          createdAt: joi.date(),
-          memberId: joi.string(),
-          universalUID: joi.string(),
-          handle: joi.string(),
-          oldId: joi.string().required(),
-          memberOldId: joi.string(),
-          membershipType: joi.string().required()
-        })
-        .required()
-    })
-    .required()
 }
 
 logger.buildService(module.exports)
