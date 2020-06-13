@@ -332,7 +332,7 @@ async function addMembersToGroup(message) {
       rawPayload = {
         group_id: Number(_.get(message, 'payload.oldId')),
         membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
-        member_id: memberId
+        member_id: memberId,
         ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
         ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
         createdAt: timestamp,

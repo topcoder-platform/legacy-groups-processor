@@ -2,11 +2,12 @@
  * Contains generic helper methods
  */
 
+const _ = require('lodash');
 const config = require('config');
 const ifxnjs = require('ifxnjs');
 const mysql = require('mysql2');
-const m2mAuth = require('tc-core-library-js').auth.m2m
-const m2m = m2mAuth(_.pick(config, ['AUTH0_URL', 'AUTH0_AUDIENCE', 'TOKEN_CACHE_TIME', 'AUTH0_PROXY_SERVER_URL']))
+const m2mAuth = require('tc-core-library-js').auth
+const m2m = m2mAuth.m2m(_.pick(config, ['AUTH0_URL', 'AUTH0_AUDIENCE', 'TOKEN_CACHE_TIME', 'AUTH0_PROXY_SERVER_URL']))
 
 // Informix connection related config values
 const Pool = ifxnjs.Pool;
