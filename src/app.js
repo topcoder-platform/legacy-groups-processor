@@ -2,18 +2,18 @@
  * The application entry point
  */
 
-require('./bootstrap');
-const config = require('config');
-const Kafka = require('no-kafka');
-const healthcheck = require('topcoder-healthcheck-dropin');
-const logger = require('./common/logger');
-const helper = require('./common/helper');
-const ProcessorService = require('./services/ProcessorService');
+require('./bootstrap')
+const config = require('config')
+const Kafka = require('no-kafka')
+const healthcheck = require('topcoder-healthcheck-dropin')
+const logger = require('./common/logger')
+const helper = require('./common/helper')
+const ProcessorService = require('./services/ProcessorService')
 
 // Start kafka consumer
-logger.info('Starting kafka consumer');
+logger.info('Starting kafka consumer')
 // create consumer
-const consumer = new Kafka.GroupConsumer(helper.getKafkaOptions());
+const consumer = new Kafka.GroupConsumer(helper.getKafkaOptions())
 
 /*
  * Data handler linked with Kafka consumer
@@ -21,73 +21,79 @@ const consumer = new Kafka.GroupConsumer(helper.getKafkaOptions());
  * this function will be invoked
  */
 const dataHandler = (messageSet, topic, partition) =>
-  Promise.each(messageSet, async m => {
-    const message = m.message.value.toString('utf8');
+  Promise.each(messageSet, async (m) => {
+    const message = m.message.value.toString('utf8')
     logger.info(
       `Handle Kafka event message; Topic: ${topic}; Partition: ${partition}; Offset: ${m.offset}; Message: ${message}.`
-    );
-    let messageJSON;
+    )
+    let messageJSON
     try {
-      messageJSON = JSON.parse(message);
+      messageJSON = JSON.parse(message)
     } catch (e) {
-      logger.error('Invalid message JSON.');
-      logger.logFullError(e);
+      logger.error('Invalid message JSON.')
+      logger.logFullError(e)
 
       // commit the message and ignore it
-      await consumer.commitOffset({ topic, partition, offset: m.offset });
-      return;
+      await consumer.commitOffset({topic, partition, offset: m.offset})
+      return
     }
 
     if (messageJSON.topic !== topic) {
-      logger.error(`The message topic ${messageJSON.topic} doesn't match the Kafka topic ${topic}.`);
+      logger.error(`The message topic ${messageJSON.topic} doesn't match the Kafka topic ${topic}.`)
 
       // commit the message and ignore it
-      await consumer.commitOffset({ topic, partition, offset: m.offset });
-      return;
+      await consumer.commitOffset({topic, partition, offset: m.offset})
+      return
     }
 
     try {
       switch (topic) {
         case config.CREATE_GROUP_TOPIC:
-          await ProcessorService.createGroup(messageJSON);
-          break;
+          await ProcessorService.createGroup(messageJSON)
+          break
         case config.UPDATE_GROUP_TOPIC:
-          await ProcessorService.updateGroup(messageJSON);
-          break;
+          await ProcessorService.updateGroup(messageJSON)
+          break
         case config.DELETE_GROUP_TOPIC:
-          await ProcessorService.deleteGroup(messageJSON);
-          break;
+          await ProcessorService.deleteGroup(messageJSON)
+          break
         case config.KAFKA_GROUP_MEMBER_ADD_TOPIC:
-          await ProcessorService.addMembersToGroup(messageJSON);
-          break;
+          await ProcessorService.addMembersToGroup(messageJSON)
+          break
         case config.KAFKA_GROUP_MEMBER_DELETE_TOPIC:
-          await ProcessorService.removeMembersFromGroup(messageJSON);
-          break;
+          await ProcessorService.removeMembersFromGroup(messageJSON)
+          break
+        case config.KAFKA_GROUP_UNIVERSAL_MEMBER_ADD_TOPIC:
+          await ProcessorService.addUniversalMembersToGroup(messageJSON)
+          break
+        case config.KAFKA_GROUP_UNIVERSAL_MEMBER_DELETE_TOPIC:
+          await ProcessorService.removeUniversalMembersFromGroup(messageJSON)
+          break
         default:
-          throw new Error(`Invalid topic: ${topic}`);
+          throw new Error(`Invalid topic: ${topic}`)
       }
 
       // only commit if no errors
-      await consumer.commitOffset({ topic, partition, offset: m.offset });
-      logger.debug('Successfully processed message');
+      await consumer.commitOffset({topic, partition, offset: m.offset})
+      logger.debug('Successfully processed message')
     } catch (err) {
-      logger.logFullError(err);
-      await consumer.commitOffset({ topic, partition, offset: m.offset });
+      logger.logFullError(err)
+      await consumer.commitOffset({topic, partition, offset: m.offset})
     }
-  });
+  })
 
 // check if there is kafka connection alive
 const check = () => {
   if (!consumer.client.initialBrokers && !consumer.client.initialBrokers.length) {
-    return false;
+    return false
   }
-  let connected = true;
-  consumer.client.initialBrokers.forEach(conn => {
-    logger.debug(`url ${conn.server()} - connected=${conn.connected}`);
-    connected = conn.connected & connected;
-  });
-  return connected;
-};
+  let connected = true
+  consumer.client.initialBrokers.forEach((conn) => {
+    logger.debug(`url ${conn.server()} - connected=${conn.connected}`)
+    connected = conn.connected & connected
+  })
+  return connected
+}
 
 const topics = [
   config.CREATE_GROUP_TOPIC,
@@ -95,7 +101,7 @@ const topics = [
   config.DELETE_GROUP_TOPIC,
   config.KAFKA_GROUP_MEMBER_ADD_TOPIC,
   config.KAFKA_GROUP_MEMBER_DELETE_TOPIC
-];
+]
 
 consumer
   .init([
@@ -106,13 +112,13 @@ consumer
   ])
   // consume configured topics
   .then(() => {
-    logger.info('Kafka Initialized');
-    healthcheck.init([check]);
-    logger.info(topics);
-    logger.info('=== Server is ready ===');
+    logger.info('Kafka Initialized')
+    healthcheck.init([check])
+    logger.info(topics)
+    logger.info('=== Server is ready ===')
   })
-  .catch(err => logger.error(err));
+  .catch((err) => logger.error(err))
 
 if (process.env.NODE_ENV === 'test') {
-  module.exports = consumer;
+  module.exports = consumer
 }
