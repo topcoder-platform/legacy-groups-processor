@@ -63,6 +63,8 @@ async function createGroup (message) {
   const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired')
 
+  // used for neo4j transaction
+  let tx = null
   try {
     const count = await checkGroupExist(message.payload.name)
     if (count > 0) {
@@ -94,7 +96,7 @@ async function createGroup (message) {
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`)
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`)
-    const tx = neoSession.beginTransaction()
+    tx = neoSession.beginTransaction()
     await tx.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
       id: message.payload.id,
       oldId: String(groupLegacyId)
@@ -125,7 +127,9 @@ async function createGroup (message) {
     logger.debug('Records have been created in DBs')
   } catch (error) {
     logger.error(error)
-    await tx.rollback()
+    if (tx) {
+      await tx.rollback()
+    }
     await informixSession.rollbackTransactionAsync()
     await mySqlConn.query('ROLLBACK')
     logger.debug('Rollback Transaction')
