@@ -117,7 +117,11 @@ consumer
     logger.info(topics)
     logger.info('=== Server is ready ===')
   })
-  .catch((err) => logger.error(err))
+  // consumer starts failed, close the neo4j database
+  .catch(async (err) => {
+    await helper.closeNeoDB()
+    logger.error(err)
+  })
 
 if (process.env.NODE_ENV === 'test') {
   module.exports = consumer
