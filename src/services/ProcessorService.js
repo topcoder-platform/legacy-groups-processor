@@ -94,10 +94,12 @@ async function createGroup (message) {
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`)
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`)
-    await neoSession.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
+    const tx = neoSession.beginTransaction()
+    await tx.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
       id: message.payload.id,
       oldId: String(groupLegacyId)
     })
+    await tx.commit()
 
     logger.debug(`Creating record in SecurityGroups`)
     await informixSession.beginTransactionAsync()
@@ -123,6 +125,7 @@ async function createGroup (message) {
     logger.debug('Records have been created in DBs')
   } catch (error) {
     logger.error(error)
+    await tx.rollback()
     await informixSession.rollbackTransactionAsync()
     await mySqlConn.query('ROLLBACK')
     logger.debug('Rollback Transaction')
