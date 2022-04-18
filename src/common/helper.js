@@ -2,18 +2,18 @@
  * Contains generic helper methods
  */
 
-const _ = require('lodash');
-const config = require('config');
-const ifxnjs = require('ifxnjs');
-const mysql = require('mysql2');
+const _ = require('lodash')
+const config = require('config')
+const ifxnjs = require('ifxnjs')
+const mysql = require('mysql2')
 const m2mAuth = require('tc-core-library-js').auth
 const m2m = m2mAuth.m2m(_.pick(config, ['AUTH0_URL', 'AUTH0_AUDIENCE', 'TOKEN_CACHE_TIME', 'AUTH0_PROXY_SERVER_URL']))
 
 // Informix connection related config values
-const Pool = ifxnjs.Pool;
+const Pool = ifxnjs.Pool
 
-const pool = Promise.promisifyAll(new Pool());
-pool.setMaxPoolSize(config.get('INFORMIX.POOL_MAX_SIZE'));
+const pool = Promise.promisifyAll(new Pool())
+pool.setMaxPoolSize(config.get('INFORMIX.POOL_MAX_SIZE'))
 const informixConnString =
   'SERVER=' +
   config.get('INFORMIX.SERVER') +
@@ -30,57 +30,67 @@ const informixConnString =
   ';UID=' +
   config.get('INFORMIX.USER') +
   ';PWD=' +
-  config.get('INFORMIX.PASSWORD');
+  config.get('INFORMIX.PASSWORD')
 
-const neo4j = require('neo4j-driver').v1;
-const driver = neo4j.driver(config.GRAPH_DB_URI, neo4j.auth.basic(config.GRAPH_DB_USER, config.GRAPH_DB_PASSWORD));
+const neo4j = require('neo4j-driver')
+const driver = neo4j.driver(config.GRAPH_DB_URI, neo4j.auth.basic(config.GRAPH_DB_USER, config.GRAPH_DB_PASSWORD), {
+  maxConnectionLifetime: 3 * 60 * 60 * 1000,
+  maxConnectionPoolSize: 20,
+  connectionAcquisitionTimeout: 240000
+})
 
 /**
  * Create Aurora DB Connection Pool
  */
-var mysqlPool  = mysql.createPool({
+var mysqlPool = mysql.createPool({
   connectionLimit: config.get('AURORA.POOL'),
   host: config.get('AURORA.HOST'),
   user: config.get('AURORA.DB_USERNAME'),
   password: config.get('AURORA.DB_PASSWORD'),
   port: config.get('AURORA.PORT'),
   database: config.get('AURORA.DB_NAME')
-}).promise();
-
+}).promise()
 
 /**
  * Get Neo4J DB session.
  * @returns {Object} new db session
  */
-async function getNeoSession() {
-  return driver.session();
+async function getNeoSession () {
+  return driver.session()
+}
+
+/**
+ * Stop the Neo4J Database connection
+ */
+async function closeNeoDB () {
+  await driver.close()
 }
 
 /**
  * Get Informix connection using the configured parameters
  * @return {Object} Informix connection
  */
-async function getInformixConnection() {
-  const conn = await pool.openAsync(informixConnString);
-  return Promise.promisifyAll(conn);
+async function getInformixConnection () {
+  const conn = await pool.openAsync(informixConnString)
+  return Promise.promisifyAll(conn)
 }
 
 /**
  * Get Kafka options
  * @return {Object} the Kafka options
  */
-function getKafkaOptions() {
+function getKafkaOptions () {
   const options = {
     connectionString: config.KAFKA_URL,
     groupId: config.KAFKA_GROUP_ID
-  };
+  }
   if (config.KAFKA_CLIENT_CERT && config.KAFKA_CLIENT_CERT_KEY) {
     options.ssl = {
       cert: config.KAFKA_CLIENT_CERT,
       key: config.KAFKA_CLIENT_CERT_KEY
-    };
+    }
   }
-  return options;
+  return options
 }
 
 /* Function to get M2M token
@@ -92,8 +102,9 @@ async function getM2Mtoken () {
 
 module.exports = {
   getNeoSession,
+  closeNeoDB,
   getInformixConnection,
   getKafkaOptions,
   mysqlPool,
   getM2Mtoken
-};
+}

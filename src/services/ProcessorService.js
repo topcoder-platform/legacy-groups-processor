@@ -16,7 +16,7 @@ const helper = require('../common/helper')
  * @param {String} sql the sql
  * @return {Object} Informix statement
  */
-async function prepare(connection, sql) {
+async function prepare (connection, sql) {
   const stmt = await connection.prepareAsync(sql)
   return Promise.promisifyAll(stmt)
 }
@@ -27,7 +27,7 @@ async function prepare(connection, sql) {
  * @param {String} name the group name
  * @param {Object} connection the Informix connection
  */
-async function checkGroupExist(name) {
+async function checkGroupExist (name) {
   const mySqlConn = await helper.mysqlPool.getConnection()
 
   logger.debug(`Checking for existence of Group = ${name}`)
@@ -47,22 +47,24 @@ async function checkGroupExist(name) {
  * Process create group message
  * @param {Object} message the kafka message
  */
-async function createGroup(message) {
-  //get informix db connection
+async function createGroup (message) {
+  // get informix db connection
   logger.debug('Getting informix session')
   const informixSession = await helper.getInformixConnection()
   logger.debug('informix session acquired')
 
-  //get neo4j db connection
+  // get neo4j db connection
   logger.debug('Getting neo4j session')
   const neoSession = await helper.getNeoSession()
   logger.debug('neo4j session acquired')
 
-  //get aurora db connection
+  // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired')
 
+  // used for neo4j transaction
+  let tx = null
   try {
     const count = await checkGroupExist(message.payload.name)
     if (count > 0) {
@@ -94,10 +96,12 @@ async function createGroup(message) {
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`)
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`)
-    await neoSession.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
+    tx = neoSession.beginTransaction()
+    await tx.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
       id: message.payload.id,
       oldId: String(groupLegacyId)
     })
+    await tx.commit()
 
     logger.debug(`Creating record in SecurityGroups`)
     await informixSession.beginTransactionAsync()
@@ -123,11 +127,14 @@ async function createGroup(message) {
     logger.debug('Records have been created in DBs')
   } catch (error) {
     logger.error(error)
+    if (tx) {
+      await tx.rollback()
+    }
     await informixSession.rollbackTransactionAsync()
     await mySqlConn.query('ROLLBACK')
     logger.debug('Rollback Transaction')
   } finally {
-    neoSession.close()
+    await neoSession.close()
     await informixSession.closeAsync()
     await mySqlConn.release()
     logger.debug('DB connection closed')
@@ -166,20 +173,20 @@ createGroup.schema = {
  * Process update group message
  * @param {Object} message the kafka message
  */
-async function updateGroup(message) {
-  //get informix db connection
+async function updateGroup (message) {
+  // get informix db connection
   logger.debug('Getting informix session')
   const informixSession = await helper.getInformixConnection()
   logger.debug('informix session acquired')
 
-  //get aurora db connection
+  // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired')
 
   try {
     const count = await checkGroupExist(message.payload.oldName)
-    if (count == 0) {
+    if (count === 0) {
       throw new Error(`Group with name ${message.payload.oldName} not exist`)
     }
 
@@ -273,8 +280,8 @@ updateGroup.schema = {
  * Process delete group message
  * @param {Object} message the kafka message
  */
-async function deleteGroup(message) {
-  //get informix db connection
+async function deleteGroup (message) {
+  // get informix db connection
 }
 
 deleteGroup.schema = {
@@ -299,15 +306,15 @@ deleteGroup.schema = {
  * Add members to the group
  * @param {Object} message the kafka message
  */
-async function addMembersToGroup(message) {
-  //get aurora db connection
+async function addMembersToGroup (message) {
+  // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired')
 
   try {
     const count = await checkGroupExist(message.payload.name)
-    if (count == 0) {
+    if (count === 0) {
       throw new Error(`Group with name ${message.payload.name} is not exist`)
     }
 
@@ -404,15 +411,15 @@ addMembersToGroup.schema = {
  * Remove member from group
  * @param {Object} message the kafka message
  */
-async function removeMembersFromGroup(message) {
-  //get aurora db connection
+async function removeMembersFromGroup (message) {
+  // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
   logger.debug('auroradb session acquired')
 
   try {
     const count = await checkGroupExist(message.payload.name)
-    if (count == 0) {
+    if (count === 0) {
       throw new Error(`Group with name ${message.payload.name} is not exist`)
     }
 

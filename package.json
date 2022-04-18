@@ -28,7 +28,7 @@
     "lodash": "^4.17.11",
     "moment": "^2.24.0",
     "mysql2": "^1.6.5",
-    "neo4j-driver": "^1.7.2",
+    "neo4j-driver": "^4.4.5",
     "no-kafka": "^3.4.3",
     "q": "^1.5.1",
     "request-promise": "^4.2.5",
