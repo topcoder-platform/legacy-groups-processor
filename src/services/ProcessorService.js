@@ -102,8 +102,7 @@ async function createGroup (message) {
       oldId: String(groupLegacyId)
     })
     await tx.commit()
-    logger.debug('Result from neo4j operation');
-    logger.debug(neoRes);
+    logger.debug(`Result from neo4j operation - ${JSON.stringify(neoRes)}`);
 
     logger.debug(`Creating record in SecurityGroups`)
     await informixSession.beginTransactionAsync()
