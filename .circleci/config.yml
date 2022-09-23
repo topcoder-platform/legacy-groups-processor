@@ -66,6 +66,7 @@ workflows:
             branches:
               only:
                 - develop
+                - fix-plat-1180-oldId-missing
 
       # Production builds are exectuted only on tagged commits to the
       # master branch.

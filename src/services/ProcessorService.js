@@ -97,11 +97,13 @@ async function createGroup (message) {
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`)
     tx = neoSession.beginTransaction()
-    await tx.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
+    const neoRes = await tx.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
       id: message.payload.id,
       oldId: String(groupLegacyId)
     })
     await tx.commit()
+    logger.debug('Result from neo4j operation');
+    logger.debug(neoRes);
 
     logger.debug(`Creating record in SecurityGroups`)
     await informixSession.beginTransactionAsync()
