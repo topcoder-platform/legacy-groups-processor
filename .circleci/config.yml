@@ -66,6 +66,7 @@ workflows:
             branches:
               only:
                 - develop
+                - change-query-format-neo4j-448
 
       # Production builds are exectuted only on tagged commits to the
       # master branch.

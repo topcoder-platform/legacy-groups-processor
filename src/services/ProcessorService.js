@@ -97,7 +97,7 @@ async function createGroup (message) {
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`)
     tx = neoSession.beginTransaction()
-    await tx.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
+    await tx.run('MATCH (g:Group {id: $id}) SET g.oldId=$oldId RETURN g', {
       id: message.payload.id,
       oldId: String(groupLegacyId)
     })
