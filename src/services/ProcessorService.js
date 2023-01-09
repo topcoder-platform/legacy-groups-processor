@@ -96,7 +96,7 @@ async function createGroup(message) {
 
     const options = {
       method: 'PATCH',
-      uri: `${config.GROUPS_API}${message.payload.id}`,
+      uri: `${config.GROUPS_API}/${message.payload.id}`,
       body: {
         oldId: String(groupLegacyId)
       },
@@ -141,7 +141,6 @@ async function createGroup(message) {
     await mySqlConn.query('ROLLBACK')
     logger.debug('Rollback Transaction')
   } finally {
-    await neoSession.close()
     await informixSession.closeAsync()
     await mySqlConn.release()
     logger.debug('DB connection closed')
