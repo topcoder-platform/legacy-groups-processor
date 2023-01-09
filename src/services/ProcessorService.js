@@ -97,6 +97,10 @@ async function createGroup(message) {
     const options = {
       method: 'PATCH',
       uri: `${config.GROUPS_API}${message.payload.id}`,
+      body: {
+        oldId: String(groupLegacyId)
+      },
+      json: true,
       headers: {
         'User-Agent': 'Request-Promise',
         'Content-Type': 'application/json',
