@@ -3,7 +3,6 @@
  */
 
 const _ = require('lodash')
-const axios = require('axios')
 const config = require('config')
 const joi = require('joi')
 const moment = require('moment')
@@ -94,14 +93,18 @@ async function createGroup(message) {
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`)
 
     const token = await helper.getM2Mtoken()
-    await axios.patch(`${config.GROUPS_API}${message.payload.id}`,
-      {
-        oldId: String(groupLegacyId)
-      },
-      {
-        headers: { Authorization: `Bearer ${token}` }
+
+    const options = {
+      method: 'PATCH',
+      uri: `${config.GROUPS_API}${message.payload.id}`,
+      headers: {
+        'User-Agent': 'Request-Promise',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
       }
-    )
+    }
+
+    const response = await request(options)
 
     logger.debug(`Creating record in SecurityGroups`)
     await informixSession.beginTransactionAsync()
