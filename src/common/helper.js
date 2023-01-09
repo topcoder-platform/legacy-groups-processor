@@ -79,8 +79,8 @@ async function getM2Mtoken() {
 }
 
 module.exports = {
-  getNeoSession,
-  closeNeoDB,
+  // getNeoSession,
+  // closeNeoDB,
   getInformixConnection,
   getKafkaOptions,
   mysqlPool,
