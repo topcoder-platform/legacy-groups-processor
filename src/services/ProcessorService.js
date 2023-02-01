@@ -122,7 +122,7 @@ async function createGroup(message) {
     const normalizedPayload = _.omitBy(params, _.isUndefined)
     const fields = Object.keys(normalizedPayload)
     const values = _.fill(Array(fields.length), '?')
-
+    logger.debug(`insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`)
     const createGroupStmt = await prepare(
       informixSession,
       `insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`
