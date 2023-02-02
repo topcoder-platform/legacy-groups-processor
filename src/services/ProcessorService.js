@@ -17,6 +17,7 @@ const helper = require('../common/helper')
  * @return {Object} Informix statement
  */
 async function prepare(connection, sql) {
+  logger.debug('prepare')
   const stmt = await connection.prepareAsync(sql)
   return Promise.promisifyAll(stmt)
 }
@@ -28,6 +29,7 @@ async function prepare(connection, sql) {
  * @param {Object} connection the Informix connection
  */
 async function checkGroupExist(name) {
+  logger.debug('checkGroupExist')
   const mySqlConn = await helper.mysqlPool.getConnection()
 
   logger.debug(`Checking for existence of Group = ${name}`)
@@ -48,6 +50,7 @@ async function checkGroupExist(name) {
  * @param {Object} message the kafka message
  */
 async function createGroup(message) {
+  logger.debug('createGroup')
   // get informix db connection
   logger.debug('Getting informix session')
   const informixSession = await helper.getInformixConnection()
@@ -180,6 +183,7 @@ createGroup.schema = {
  * @param {Object} message the kafka message
  */
 async function updateGroup(message) {
+  logger.debug('updateGroup')
   // get informix db connection
   logger.debug('Getting informix session')
   const informixSession = await helper.getInformixConnection()
@@ -287,6 +291,7 @@ updateGroup.schema = {
  * @param {Object} message the kafka message
  */
 async function deleteGroup(message) {
+  logger.debug('deleteGroup')
   // get informix db connection
 }
 
@@ -313,6 +318,7 @@ deleteGroup.schema = {
  * @param {Object} message the kafka message
  */
 async function addMembersToGroup(message) {
+  logger.debug('addMembersToGroup')
   // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
@@ -418,6 +424,7 @@ addMembersToGroup.schema = {
  * @param {Object} message the kafka message
  */
 async function removeMembersFromGroup(message) {
+  logger.debug('removeMembersFromGroup')
   // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
