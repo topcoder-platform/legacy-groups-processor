@@ -32,13 +32,6 @@ const informixConnString =
   ';PWD=' +
   config.get('INFORMIX.PASSWORD')
 
-const neo4j = require('neo4j-driver')
-const driver = neo4j.driver(config.GRAPH_DB_URI, neo4j.auth.basic(config.GRAPH_DB_USER, config.GRAPH_DB_PASSWORD), {
-  maxConnectionLifetime: 3 * 60 * 60 * 1000,
-  maxConnectionPoolSize: 20,
-  connectionAcquisitionTimeout: 240000
-})
-
 /**
  * Create Aurora DB Connection Pool
  */
@@ -52,25 +45,10 @@ var mysqlPool = mysql.createPool({
 }).promise()
 
 /**
- * Get Neo4J DB session.
- * @returns {Object} new db session
- */
-async function getNeoSession () {
-  return driver.session()
-}
-
-/**
- * Stop the Neo4J Database connection
- */
-async function closeNeoDB () {
-  await driver.close()
-}
-
-/**
  * Get Informix connection using the configured parameters
  * @return {Object} Informix connection
  */
-async function getInformixConnection () {
+async function getInformixConnection() {
   const conn = await pool.openAsync(informixConnString)
   return Promise.promisifyAll(conn)
 }
@@ -79,7 +57,7 @@ async function getInformixConnection () {
  * Get Kafka options
  * @return {Object} the Kafka options
  */
-function getKafkaOptions () {
+function getKafkaOptions() {
   const options = {
     connectionString: config.KAFKA_URL,
     groupId: config.KAFKA_GROUP_ID
@@ -96,13 +74,13 @@ function getKafkaOptions () {
 /* Function to get M2M token
  * @returns m2m token
  */
-async function getM2Mtoken () {
+async function getM2Mtoken() {
   return m2m.getMachineToken(config.AUTH0_CLIENT_ID, config.AUTH0_CLIENT_SECRET)
 }
 
 module.exports = {
-  getNeoSession,
-  closeNeoDB,
+  // getNeoSession,
+  // closeNeoDB,
   getInformixConnection,
   getKafkaOptions,
   mysqlPool,

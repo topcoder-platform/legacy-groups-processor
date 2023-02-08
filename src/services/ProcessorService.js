@@ -16,7 +16,7 @@ const helper = require('../common/helper')
  * @param {String} sql the sql
  * @return {Object} Informix statement
  */
-async function prepare (connection, sql) {
+async function prepare(connection, sql) {
   const stmt = await connection.prepareAsync(sql)
   return Promise.promisifyAll(stmt)
 }
@@ -27,7 +27,7 @@ async function prepare (connection, sql) {
  * @param {String} name the group name
  * @param {Object} connection the Informix connection
  */
-async function checkGroupExist (name) {
+async function checkGroupExist(name) {
   const mySqlConn = await helper.mysqlPool.getConnection()
 
   logger.debug(`Checking for existence of Group = ${name}`)
@@ -47,16 +47,11 @@ async function checkGroupExist (name) {
  * Process create group message
  * @param {Object} message the kafka message
  */
-async function createGroup (message) {
+async function createGroup(message) {
   // get informix db connection
   logger.debug('Getting informix session')
   const informixSession = await helper.getInformixConnection()
   logger.debug('informix session acquired')
-
-  // get neo4j db connection
-  logger.debug('Getting neo4j session')
-  const neoSession = await helper.getNeoSession()
-  logger.debug('neo4j session acquired')
 
   // get aurora db connection
   logger.debug('Getting auroradb session')
@@ -80,8 +75,8 @@ async function createGroup (message) {
       description: _.get(message, 'payload.description'),
       private_group: _.get(message, 'payload.privateGroup') ? true : false,
       self_register: _.get(message, 'payload.selfRegister') ? true : false,
-      ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
-      ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
+      ...(_.get(message, 'payload.createdBy') ? { createdBy: Number(_.get(message, 'payload.createdBy')) } : {}),
+      ...(_.get(message, 'payload.createdBy') ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) } : {}),
       createdAt: timestamp,
       modifiedAt: timestamp
     }
@@ -96,12 +91,24 @@ async function createGroup (message) {
     logger.debug(`Group has been created with id = ${groupLegacyId} in Authorization DB`)
 
     logger.debug(`Updating Neo4J DB with ${groupLegacyId}`)
-    tx = neoSession.beginTransaction()
-    await tx.run(`MATCH (g:Group {id: {id}}) SET g.oldId={oldId} RETURN g`, {
-      id: message.payload.id,
-      oldId: String(groupLegacyId)
-    })
-    await tx.commit()
+
+    const token = await helper.getM2Mtoken()
+
+    const options = {
+      method: 'PATCH',
+      uri: `${config.GROUPS_API}/${message.payload.id}`,
+      body: {
+        oldId: String(groupLegacyId)
+      },
+      json: true,
+      headers: {
+        'User-Agent': 'Request-Promise',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    }
+
+    const response = await request(options)
 
     logger.debug(`Creating record in SecurityGroups`)
     await informixSession.beginTransactionAsync()
@@ -115,7 +122,6 @@ async function createGroup (message) {
     const normalizedPayload = _.omitBy(params, _.isUndefined)
     const fields = Object.keys(normalizedPayload)
     const values = _.fill(Array(fields.length), '?')
-
     const createGroupStmt = await prepare(
       informixSession,
       `insert into security_groups (${fields.join(', ')}) values (${values.join(', ')})`
@@ -134,7 +140,6 @@ async function createGroup (message) {
     await mySqlConn.query('ROLLBACK')
     logger.debug('Rollback Transaction')
   } finally {
-    await neoSession.close()
     await informixSession.closeAsync()
     await mySqlConn.release()
     logger.debug('DB connection closed')
@@ -173,7 +178,7 @@ createGroup.schema = {
  * Process update group message
  * @param {Object} message the kafka message
  */
-async function updateGroup (message) {
+async function updateGroup(message) {
   // get informix db connection
   logger.debug('Getting informix session')
   const informixSession = await helper.getInformixConnection()
@@ -280,7 +285,7 @@ updateGroup.schema = {
  * Process delete group message
  * @param {Object} message the kafka message
  */
-async function deleteGroup (message) {
+async function deleteGroup(message) {
   // get informix db connection
 }
 
@@ -306,7 +311,7 @@ deleteGroup.schema = {
  * Add members to the group
  * @param {Object} message the kafka message
  */
-async function addMembersToGroup (message) {
+async function addMembersToGroup(message) {
   // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
@@ -340,8 +345,8 @@ async function addMembersToGroup (message) {
         group_id: Number(_.get(message, 'payload.oldId')),
         membership_type: _.get(message, 'payload.membershipType') === 'group' ? 2 : 1,
         member_id: memberId,
-        ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
-        ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
+        ...(_.get(message, 'payload.createdBy') ? { createdBy: Number(_.get(message, 'payload.createdBy')) } : {}),
+        ...(_.get(message, 'payload.createdBy') ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) } : {}),
         createdAt: timestamp,
         modifiedAt: timestamp
       }
@@ -354,8 +359,8 @@ async function addMembersToGroup (message) {
             ? _.get(message, 'payload.memberOldId')
             : _.get(message, 'payload.memberId')
         ),
-        ...(_.get(message, 'payload.createdBy') ? {createdBy: Number(_.get(message, 'payload.createdBy'))} : {}),
-        ...(_.get(message, 'payload.createdBy') ? {modifiedBy: Number(_.get(message, 'payload.createdBy'))} : {}),
+        ...(_.get(message, 'payload.createdBy') ? { createdBy: Number(_.get(message, 'payload.createdBy')) } : {}),
+        ...(_.get(message, 'payload.createdBy') ? { modifiedBy: Number(_.get(message, 'payload.createdBy')) } : {}),
         createdAt: timestamp,
         modifiedAt: timestamp
       }
@@ -411,7 +416,7 @@ addMembersToGroup.schema = {
  * Remove member from group
  * @param {Object} message the kafka message
  */
-async function removeMembersFromGroup (message) {
+async function removeMembersFromGroup(message) {
   // get aurora db connection
   logger.debug('Getting auroradb session')
   const mySqlConn = await helper.mysqlPool.getConnection()
