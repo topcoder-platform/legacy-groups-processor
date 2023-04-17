@@ -34,7 +34,7 @@ async function checkGroupExist(name) {
   try {
     const [rows] = await mySqlConn.query('SELECT * FROM `group` WHERE `name` = ?', [name])
     logger.debug(`${rows.length} records found for group name = ${name}`)
-    return rows.length
+    return rows
   } catch (error) {
     logger.error(error)
     throw error
@@ -61,7 +61,7 @@ async function createGroup(message) {
   // used for neo4j transaction
   let tx = null
   try {
-    const count = await checkGroupExist(message.payload.name)
+    const count = (await checkGroupExist(message.payload.name)).length
     if (count > 0) {
       throw new Error(`Group with name ${message.payload.name} is already exist`)
     }
@@ -190,7 +190,7 @@ async function updateGroup(message) {
   logger.debug('auroradb session acquired')
 
   try {
-    const count = await checkGroupExist(message.payload.oldName)
+    const count = (await checkGroupExist(message.payload.oldName)).length
     if (count === 0) {
       throw new Error(`Group with name ${message.payload.oldName} not exist`)
     }
@@ -286,7 +286,60 @@ updateGroup.schema = {
  * @param {Object} message the kafka message
  */
 async function deleteGroup(message) {
+  logger.info('enter delete group')
   // get informix db connection
+  logger.debug('Getting informix session')
+  const informixSession = await helper.getInformixConnection()
+  logger.debug('informix session acquired')
+
+  // get aurora db connection
+  logger.debug('Getting auroradb session')
+  const mySqlConn = await helper.mysqlPool.getConnection()
+  logger.debug('auroradb session acquired')
+
+  try {
+    const groupsToDelete = message.payload.groups
+    for(let g in groupsToDelete) {
+      const group = groupsToDelete[g]
+
+      const rows = await checkGroupExist(group.name)
+      if (rows.length === 0) {
+        throw new Error(`Group with name ${group.name} not exist`)
+      }
+
+      const groupId = rows[0].id
+
+      // delete members from `group_membership` table from authorization db
+      await mySqlConn.query('START TRANSACTION')
+      logger.debug('AuroraDB Delete Transaction Started')
+
+      const deleteMembers = 'DELETE from `group_membership` WHERE `group_id` = ?'
+      const [deleteMembersRes] = await mySqlConn.query(deleteMembers, [groupId])
+
+      const deleteGroup = 'DELETE from `group` WHERE `id` = ?'
+      const [deletegroupRes] = await mySqlConn.query(deleteGroup, [groupId])
+
+      logger.debug(`Deleting record from SecurityGroups`)
+      await informixSession.beginTransactionAsync()
+  
+      const deleteGroupStatement = await informixSession.queryAsync(
+        `delete from security_groups where group_id = ${groupId}`
+      )
+      await informixSession.commitTransactionAsync()
+     
+      logger.debug('AuroraDB Delete Transaction Committed')
+      await mySqlConn.query('COMMIT')
+    }
+  } catch (error) {
+    logger.error(error)
+    await informixSession.rollbackTransactionAsync()
+    await mySqlConn.query('ROLLBACK')
+    logger.debug('Rollback Transaction')
+  } finally {
+    await informixSession.closeAsync()
+    await mySqlConn.release()
+    logger.debug('DB connection closed')
+  }
 }
 
 deleteGroup.schema = {
@@ -318,7 +371,7 @@ async function addMembersToGroup(message) {
   logger.debug('auroradb session acquired')
 
   try {
-    const count = await checkGroupExist(message.payload.name)
+    const count = (await checkGroupExist(message.payload.name)).length
     if (count === 0) {
       throw new Error(`Group with name ${message.payload.name} is not exist`)
     }
@@ -423,7 +476,7 @@ async function removeMembersFromGroup(message) {
   logger.debug('auroradb session acquired')
 
   try {
-    const count = await checkGroupExist(message.payload.name)
+    const count = (await checkGroupExist(message.payload.name)).length
     if (count === 0) {
       throw new Error(`Group with name ${message.payload.name} is not exist`)
     }
